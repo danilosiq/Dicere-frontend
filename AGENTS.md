@@ -25,8 +25,10 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 - Centralizar comunicação Socket.IO em `services` ou hooks específicos
 - Hooks devem concentrar lógica reutilizável
 - Store global deve ser usada apenas para estados realmente compartilhados
-- Componentes globais devem ficar em `components`
+- Componentes próprios, globais e reutilizáveis devem ficar em `src/core/components`
 - Componentes específicos devem ficar dentro da própria feature
+- `src/components/ui` é reservado exclusivamente aos componentes nativos instalados pelo shadCn
+- Wrappers, adaptações e derivações de componentes shadCn devem ficar em `src/core/components`
 - Reutilizar componentes existentes antes de criar novos
 - Manter a arquitetura definida no Notion
 
@@ -49,6 +51,7 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 - Toda feature deve considerar estados vazios, erro e carregamento
 - Toda tela deve respeitar light mode e dark mode
 - Toda implementação visual deve seguir as cores, fontes e padrões definidos no setup
+- Todo o uso de datas e formatações, deverá ser usado `date-fns`
 
 ---
 
@@ -87,6 +90,7 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 - shadCn
 - react-speech-recognition
 - Zustand
+- date-fns
 
 ---
 
@@ -101,11 +105,14 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 
 /src
   /components
-  /features
-  /hooks
-  /services
-  /@types
-  /utils
-  /styles
-  /store
+    /ui              # somente componentes nativos do shadCn
+  /core
+    /components      # componentes próprios globais e reutilizáveis
+    /features
+    /hooks
+    /services
+    /@types
+    /utils
+    /styles
+    /store
 ```

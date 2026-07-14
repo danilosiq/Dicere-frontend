@@ -40,19 +40,30 @@ Componentes globais:
 
 ```text
 src/
-└── components/
-    ├── ui/
-    ├── layout/
-    └── ...
+└── core/
+    └── components/
+        ├── button.tsx
+        ├── drawer.tsx
+        ├── layout.tsx
+        └── ...
 ```
+
+Todo componente próprio usado em vários lugares deve ficar em
+`src/core/components`, inclusive wrappers, adaptações e derivações de
+componentes shadCn.
+
+O diretório `src/components/ui` é exclusivo para componentes nativos
+instalados pelo shadCn. Não adicionar regras de negócio, wrappers ou
+customizações do Dicere nesse diretório.
 
 Componentes específicos de feature:
 
 ```text
 src/
-└── features/
-    └── room/
-        └── components/
+└── core/
+    └── features/
+        └── room/
+            └── components/
 ```
 
 ---
@@ -87,12 +98,13 @@ Exemplo:
 
 ```text
 src/
-└── features/
-    └── room/
-        ├── components/
-        │   ├── CreateRoomForm.tsx
-        │   └── RoomAccessCard.tsx
-        └── index.tsx
+└── core/
+    └── features/
+        └── room/
+            ├── components/
+            │   ├── CreateRoomForm.tsx
+            │   └── RoomAccessCard.tsx
+            └── index.tsx
 ```
 
 ---
@@ -291,6 +303,8 @@ Antes de finalizar um componente verificar:
 - Não usa Socket.IO diretamente.
 - Não contém regra de negócio.
 - Está no lugar correto: global ou feature.
+- Componentes próprios globais estão em `src/core/components`.
+- Apenas componentes nativos do shadCn estão em `src/components/ui`.
 - Reutiliza componentes existentes.
 - Trata loading, erro ou disabled quando necessário.
 - Não possui `console.log`.

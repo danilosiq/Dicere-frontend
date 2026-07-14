@@ -5,9 +5,9 @@ import type { ReactNode } from "react";
 import { useSyncExternalStore } from "react";
 
 import {
-  Drawer as ShadcnDrawer,
   DrawerContent,
   DrawerTitle,
+  Drawer as ShadcnDrawer,
 } from "@/components/ui/drawer";
 import { Column, Row } from "@/core/components/layout";
 import { cn } from "@/core/utils/cn";
@@ -88,7 +88,7 @@ export function Drawer({
       >
         <Column className="max-h-full min-h-0 w-full overflow-hidden">
           {hasHeader ? (
-            <Row className="border-border min-h-16 items-center justify-between gap-4 border-b px-6 py-4">
+            <Row className="border-border min-h-16 items-center justify-between gap-4 px-6 py-4">
               {title ? (
                 <DrawerTitle className="font-display text-xl font-semibold">
                   {title}

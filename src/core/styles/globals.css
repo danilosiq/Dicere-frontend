@@ -4,8 +4,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --font-sans: var(--font-roboto);
-  --font-display: var(--font-baloo-2);
+  --font-sans: var(--font-roboto-family);
+  --font-display: var(--font-baloo-2-family);
+  --font-roboto: var(--font-roboto-family);
+  --font-baloo-2: var(--font-baloo-2-family);
   --color-background: var(--background);
   --color-component: var(--component);
   --color-foreground: var(--foreground);
@@ -31,6 +33,18 @@
   --color-info: var(--info);
   --color-info-light: var(--info-light);
   --color-info-dark: var(--info-dark);
+  --animate-hero-float: hero-float 7s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translate3d(0, -6px, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 16px, 0);
+  }
 }
 
 * {
@@ -65,7 +79,7 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-roboto), sans-serif;
+  font-family: var(--font-roboto-family), sans-serif;
 }
 
 button,

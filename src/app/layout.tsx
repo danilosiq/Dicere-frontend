@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Baloo_2, Roboto } from "next/font/google";
 import type { PropsWithChildren } from "react";
 
 import { Providers } from "@/app/providers";
+import { baloo2, roboto } from "@/core/styles/fonts";
 
 import "../core/styles/globals.css";
 
@@ -16,16 +16,6 @@ const themeScript = `
     document.documentElement.style.colorScheme = theme;
   } catch {}
 `;
-
-const baloo = Baloo_2({
-  subsets: ["latin"],
-  variable: "--font-baloo-2",
-});
-
-const roboto = Roboto({
-  subsets: ["latin"],
-  variable: "--font-roboto",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -41,7 +31,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${baloo.variable} ${roboto.variable}`}>
+      <body className={`${baloo2.variable} ${roboto.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

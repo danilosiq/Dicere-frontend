@@ -6,7 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { cn } from "@/core/utils/cn";
 
-export type ButtonVariant = "primary" | "secondary";
+export type ButtonVariant = "primary" | "secondary" | "ghost";
 export type ButtonRounded = "sm" | "md" | "lg" | "full";
 
 export type ButtonProps = {
@@ -19,6 +19,7 @@ export type ButtonProps = {
   height?: number | "full";
   paddingX?: number;
   paddingY?: number;
+  fontSize?: number;
   disabled?: boolean;
   loading?: boolean;
   type?: "button" | "submit" | "reset";
@@ -31,6 +32,8 @@ const variantClasses: Record<ButtonVariant, string> = {
     "bg-primary-green hover:bg-primary-green/90 active:bg-primary-green/80 focus-visible:ring-primary-green",
   secondary:
     "bg-primary-purple hover:bg-primary-purple/90 active:bg-primary-purple/80 focus-visible:ring-primary-purple",
+  ghost:
+    "bg-transparent  font-semibold hover:bg-primary-green/10 active:bg-primary-green/20 focus-visible:ring-primary-green",
 };
 
 const roundedClasses: Record<ButtonRounded, string> = {
@@ -50,6 +53,7 @@ export function Button({
   height,
   paddingX = 18,
   paddingY = 6,
+  fontSize,
   disabled = false,
   loading = false,
   type = "button",
@@ -88,7 +92,9 @@ export function Button({
       ) : (
         <>
           {startIcon}
-          <span>{label}</span>
+          <span style={fontSize !== undefined ? { fontSize } : undefined}>
+            {label}
+          </span>
           {endIcon}
         </>
       )}

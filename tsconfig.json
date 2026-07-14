@@ -22,12 +22,13 @@
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],
       "@/features/*": ["./src/features/*"],
-      "@/hooks/*": ["./src/hooks/*"],
-      "@/services/*": ["./src/services/*"],
-      "@/utils/*": ["./src/utils/*"],
+      "@/hooks/*": ["./src/core/hooks/*"],
+      "@/services/*": ["./src/core/services/*"],
+      "@/utils/*": ["./src/core/utils/*"],
       "@/styles/*": ["./src/styles/*"],
-      "@/store/*": ["./src/store/*"],
-      "@/@types/*": ["./src/@types/*"]
+      "@/store/*": ["./src/core/store/*"],
+      "@/@types/*": ["./src/core/@types/*"],
+      "@/images/*": ["./src/core/assets/images/*"]
     }
   },
   "include": [

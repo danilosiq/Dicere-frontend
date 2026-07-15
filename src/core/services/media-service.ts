@@ -16,6 +16,12 @@ type StopMediaStreamParams = {
   stream: MediaStream | null;
 };
 
+type SetMediaTrackEnabledParams = {
+  stream: MediaStream | null;
+  kind: "audio" | "video";
+  enabled: boolean;
+};
+
 export async function requestLocalMedia({
   constraints = DEFAULT_LOCAL_MEDIA_CONSTRAINTS,
 }: RequestLocalMediaParams = {}) {
@@ -35,4 +41,19 @@ export async function requestLocalMedia({
 
 export function stopMediaStream({ stream }: StopMediaStreamParams) {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+export function setMediaTrackEnabled({
+  stream,
+  kind,
+  enabled,
+}: SetMediaTrackEnabledParams) {
+  const tracks =
+    kind === "audio" ? stream?.getAudioTracks() : stream?.getVideoTracks();
+
+  tracks?.forEach((track) => {
+    track.enabled = enabled;
+  });
+
+  return (tracks?.length ?? 0) > 0;
 }

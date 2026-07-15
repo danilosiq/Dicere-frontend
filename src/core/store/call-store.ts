@@ -16,6 +16,8 @@ type CallStore = {
   iceConnectionState: RTCIceConnectionState | null;
   iceGatheringState: RTCIceGatheringState | null;
   signalingState: RTCSignalingState | null;
+  microphoneEnabled: boolean;
+  cameraEnabled: boolean;
   setLocalStream: (stream: MediaStream) => void;
   setRemoteStream: (stream: MediaStream) => void;
   setJoinedCall: (joinedCall: CallJoinedPayload) => void;
@@ -24,6 +26,8 @@ type CallStore = {
   ) => void;
   setCallReady: (callReady: CallReadyPayload) => void;
   setPeerConnectionStates: (states: PeerConnectionStates) => void;
+  setMicrophoneEnabled: (enabled: boolean) => void;
+  setCameraEnabled: (enabled: boolean) => void;
   clearLocalStream: (expectedStream?: MediaStream) => void;
   clearRemoteStream: (expectedStream?: MediaStream) => void;
   clearJoinedCall: () => void;
@@ -49,6 +53,8 @@ export const useCallStore = create<CallStore>((set) => ({
   iceConnectionState: null,
   iceGatheringState: null,
   signalingState: null,
+  microphoneEnabled: true,
+  cameraEnabled: true,
   setLocalStream: (localStream) => set({ localStream }),
   setRemoteStream: (remoteStream) => set({ remoteStream }),
   setJoinedCall: (joinedCall) =>
@@ -71,6 +77,8 @@ export const useCallStore = create<CallStore>((set) => ({
     set({ waitingForParticipant, callReady: null }),
   setCallReady: (callReady) => set({ callReady, waitingForParticipant: null }),
   setPeerConnectionStates: (states) => set(states),
+  setMicrophoneEnabled: (microphoneEnabled) => set({ microphoneEnabled }),
+  setCameraEnabled: (cameraEnabled) => set({ cameraEnabled }),
   clearLocalStream: (expectedStream) =>
     set((state) => {
       if (expectedStream && state.localStream !== expectedStream) {
@@ -113,5 +121,7 @@ export const useCallStore = create<CallStore>((set) => ({
       iceConnectionState: null,
       iceGatheringState: null,
       signalingState: null,
+      microphoneEnabled: true,
+      cameraEnabled: true,
     }),
 }));

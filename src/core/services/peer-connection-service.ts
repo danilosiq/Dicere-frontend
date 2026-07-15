@@ -76,6 +76,7 @@ export function closePeerConnection({
   peerConnection.oniceconnectionstatechange = null;
   peerConnection.onicegatheringstatechange = null;
   peerConnection.onsignalingstatechange = null;
+  peerConnection.onicecandidate = null;
   peerConnection.ontrack = null;
 
   if (peerConnection.signalingState !== "closed") {

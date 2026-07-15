@@ -1,17 +1,22 @@
 import { create } from "zustand";
 
+import type { CallJoinedPayload } from "@/core/@types/socket-events";
+
 type CallStore = {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  joinedCall: CallJoinedPayload | null;
   connectionState: RTCPeerConnectionState | null;
   iceConnectionState: RTCIceConnectionState | null;
   iceGatheringState: RTCIceGatheringState | null;
   signalingState: RTCSignalingState | null;
   setLocalStream: (stream: MediaStream) => void;
   setRemoteStream: (stream: MediaStream) => void;
+  setJoinedCall: (joinedCall: CallJoinedPayload) => void;
   setPeerConnectionStates: (states: PeerConnectionStates) => void;
   clearLocalStream: (expectedStream?: MediaStream) => void;
   clearRemoteStream: (expectedStream?: MediaStream) => void;
+  clearJoinedCall: () => void;
   clearPeerConnectionStates: () => void;
   resetCallState: () => void;
 };
@@ -26,12 +31,14 @@ export type PeerConnectionStates = {
 export const useCallStore = create<CallStore>((set) => ({
   localStream: null,
   remoteStream: null,
+  joinedCall: null,
   connectionState: null,
   iceConnectionState: null,
   iceGatheringState: null,
   signalingState: null,
   setLocalStream: (localStream) => set({ localStream }),
   setRemoteStream: (remoteStream) => set({ remoteStream }),
+  setJoinedCall: (joinedCall) => set({ joinedCall }),
   setPeerConnectionStates: (states) => set(states),
   clearLocalStream: (expectedStream) =>
     set((state) => {
@@ -49,6 +56,7 @@ export const useCallStore = create<CallStore>((set) => ({
 
       return { remoteStream: null };
     }),
+  clearJoinedCall: () => set({ joinedCall: null }),
   clearPeerConnectionStates: () =>
     set({
       connectionState: null,
@@ -60,6 +68,7 @@ export const useCallStore = create<CallStore>((set) => ({
     set({
       localStream: null,
       remoteStream: null,
+      joinedCall: null,
       connectionState: null,
       iceConnectionState: null,
       iceGatheringState: null,

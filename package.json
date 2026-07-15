@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/core/services/*.test.ts"
   },
   "engines": {
     "node": ">=22.13.0"

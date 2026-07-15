@@ -122,7 +122,17 @@ export function useCallSession() {
   }, [createPeerConnection, joinCall, startLocalMedia]);
 
   useEffect(() => {
-    void initializeCall();
+    let isCancelled = false;
+
+    queueMicrotask(() => {
+      if (!isCancelled) {
+        void initializeCall();
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [initializeCall]);
 
   const leaveCall = useCallback(() => {

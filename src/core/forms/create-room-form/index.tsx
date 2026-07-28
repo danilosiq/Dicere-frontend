@@ -1,11 +1,12 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
 import { Button } from "@/core/components/button";
 import { InputText } from "@/core/components/input-text";
 import { Column, Row } from "@/core/components/layout";
+import { SelectorCountry } from "@/core/components/selector-country";
 
 import { createRoomSchema, type CreateRoomSchemaType } from "./schema";
 
@@ -17,6 +18,7 @@ export type CreateRoomFormProps = {
 export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<CreateRoomSchemaType>({
@@ -25,6 +27,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
       title: "",
       nickname: "",
       password: "",
+      targetLanguage: undefined,
     },
   });
 
@@ -49,6 +52,22 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           required
           {...register("nickname")}
         />
+        <Controller
+          control={control}
+          name="targetLanguage"
+          render={({ field }) => (
+            <SelectorCountry
+              value={field.value}
+              placeholder="Idioma das traduções recebidas"
+              onSelect={field.onChange}
+            />
+          )}
+        />
+        {errors.targetLanguage?.message && (
+          <p className="text-error text-sm" role="alert">
+            {errors.targetLanguage.message}
+          </p>
+        )}
         <InputText
           label="Senha"
           placeholder="Senha"
@@ -64,6 +83,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
             variant="ghost"
             rounded="sm"
             type="button"
+            disabled={isSubmitting}
             onClick={onCancel}
           />
           <Button
@@ -71,6 +91,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
             rounded="sm"
             type="submit"
             loading={isSubmitting}
+            disabled={isSubmitting}
           />
         </Row>
       </Column>

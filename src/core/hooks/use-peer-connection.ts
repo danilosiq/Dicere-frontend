@@ -132,19 +132,35 @@ export function usePeerConnection() {
             remoteTrackCleanupRef.current.delete(track);
             nextRemoteStream.removeTrack(track);
 
-            if (
-              peerConnectionRef.current === nextPeerConnection &&
-              nextRemoteStream.getTracks().length === 0
-            ) {
-              clearRemoteStream(nextRemoteStream);
+            if (peerConnectionRef.current !== nextPeerConnection) {
+              return;
             }
+
+            const remainingTracks = nextRemoteStream.getTracks();
+
+            if (remainingTracks.length === 0) {
+              const currentRemoteStream = remoteStreamRef.current;
+              remoteStreamRef.current = null;
+              clearRemoteStream(currentRemoteStream ?? undefined);
+              return;
+            }
+
+            const updatedRemoteStream = new MediaStream(remainingTracks);
+            remoteStreamRef.current = updatedRemoteStream;
+            setRemoteStream(updatedRemoteStream);
           };
 
           remoteTrackCleanupRef.current.set(track, handleTrackEnded);
           track.addEventListener("ended", handleTrackEnded);
         }
 
-        setRemoteStream(nextRemoteStream);
+        // Publica uma nova instância para que seletores do Zustand e o React
+        // percebam quando áudio e vídeo chegam em eventos `track` separados.
+        const updatedRemoteStream = new MediaStream(
+          nextRemoteStream.getTracks(),
+        );
+        remoteStreamRef.current = updatedRemoteStream;
+        setRemoteStream(updatedRemoteStream);
       };
 
       syncLocalStreamTracks({

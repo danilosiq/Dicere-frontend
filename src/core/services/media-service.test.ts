@@ -1,7 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { describe, expect, it, vi } from "vitest";
 
-import { setMediaTrackEnabled, stopMediaStream } from "./media-service.ts";
+import {
+  requestLocalMedia,
+  setMediaTrackEnabled,
+  stopMediaStream,
+} from "./media-service";
 
 function createTrack(kind: "audio" | "video") {
   return {
@@ -26,30 +29,40 @@ function createStream() {
   return { stream, audioTrack, videoTrack };
 }
 
-test("desativa microfone e câmera sem destruir o stream", () => {
-  const { stream, audioTrack, videoTrack } = createStream();
+describe("media-service", () => {
+  it("desativa microfone e câmera sem destruir o stream", () => {
+    const { stream, audioTrack, videoTrack } = createStream();
 
-  assert.equal(
-    setMediaTrackEnabled({ stream, kind: "audio", enabled: false }),
-    true,
-  );
-  assert.equal(audioTrack.enabled, false);
-  assert.equal(videoTrack.enabled, true);
-  assert.equal(audioTrack.stopped, false);
+    expect(
+      setMediaTrackEnabled({ stream, kind: "audio", enabled: false }),
+    ).toBe(true);
+    expect(audioTrack.enabled).toBe(false);
+    expect(videoTrack.enabled).toBe(true);
+    expect(audioTrack.stopped).toBe(false);
 
-  assert.equal(
-    setMediaTrackEnabled({ stream, kind: "video", enabled: false }),
-    true,
-  );
-  assert.equal(videoTrack.enabled, false);
-  assert.equal(videoTrack.stopped, false);
-});
+    expect(
+      setMediaTrackEnabled({ stream, kind: "video", enabled: false }),
+    ).toBe(true);
+    expect(videoTrack.enabled).toBe(false);
+    expect(videoTrack.stopped).toBe(false);
+  });
 
-test("para todas as tracks durante a limpeza da chamada", () => {
-  const { stream, audioTrack, videoTrack } = createStream();
+  it("para todas as tracks durante a limpeza da chamada", () => {
+    const { stream, audioTrack, videoTrack } = createStream();
 
-  stopMediaStream({ stream });
+    stopMediaStream({ stream });
 
-  assert.equal(audioTrack.stopped, true);
-  assert.equal(videoTrack.stopped, true);
+    expect(audioTrack.stopped).toBe(true);
+    expect(videoTrack.stopped).toBe(true);
+  });
+
+  it("solicita mídia com as constraints informadas", async () => {
+    const { stream } = createStream();
+    const getUserMedia = vi.fn().mockResolvedValue(stream);
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+    const constraints = { audio: true, video: false };
+
+    await expect(requestLocalMedia({ constraints })).resolves.toBe(stream);
+    expect(getUserMedia).toHaveBeenCalledWith(constraints);
+  });
 });

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CallLeftPayload,
   ParticipantLeftCallPayload,
+  RoomExpiredPayload,
   WebRtcAnswerReceivedPayload,
   WebRtcIceCandidate,
   WebRtcIceCandidateReceivedPayload,
@@ -46,6 +47,8 @@ export type WebRtcSignalingHookError = {
 export type CallTermination =
   | { type: "call-left"; payload: CallLeftPayload }
   | { type: "participant-left"; payload: ParticipantLeftCallPayload }
+  | { type: "local-participant-removed" }
+  | { type: "room-expired"; payload: RoomExpiredPayload }
   | { type: "socket-disconnected" };
 
 type UseWebRtcSignalingParams = {
@@ -204,8 +207,6 @@ export function useWebRtcSignaling({
         if (
           !canApplyOffer({
             signalingState: currentPeerConnection.signalingState,
-            hasRemoteDescription:
-              currentPeerConnection.remoteDescription !== null,
           })
         ) {
           throw new WebRtcSignalingError({
@@ -269,8 +270,6 @@ export function useWebRtcSignaling({
         if (
           !canApplyAnswer({
             signalingState: currentPeerConnection.signalingState,
-            hasRemoteDescription:
-              currentPeerConnection.remoteDescription !== null,
           })
         ) {
           throw new WebRtcSignalingError({
@@ -329,6 +328,10 @@ export function useWebRtcSignaling({
           type: "participant-left",
           payload,
         }),
+      onLocalParticipantRemoved: () =>
+        onCallTerminatedRef.current?.({ type: "local-participant-removed" }),
+      onRoomExpired: (payload) =>
+        onCallTerminatedRef.current?.({ type: "room-expired", payload }),
       onError: reportError,
       onDisconnect: () => {
         setStatus("disconnected");

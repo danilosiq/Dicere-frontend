@@ -67,20 +67,45 @@ export type WebRtcDescriptionSentPayload = {
   toParticipantId: string;
 };
 
-export type LeaveCallReason = "USER_LEFT" | "CONNECTION_CLOSED";
+export type CallLeaveReason = "USER_LEFT" | "CONNECTION_CLOSED";
+
+export type CallTerminationReason =
+  CallLeaveReason | "PARTICIPANT_REMOVED" | "ROOM_CLOSED" | "ROOM_EXPIRED";
 
 export type CallLeftPayload = {
   roomId: string;
   participantId: string;
-  reason: LeaveCallReason;
+  reason: CallLeaveReason;
 };
 
 export type ParticipantLeftCallPayload = {
   participantId: string;
-  reason: LeaveCallReason;
+  reason: CallTerminationReason;
+};
+
+export type RoomExpiredPayload = {
+  roomId: string;
+  status: "EXPIRED";
+  reason?: string;
+};
+
+export type TranslateSpeechPayload = {
+  roomId: string;
+  text: string;
+};
+
+export type VoiceTranslationReceivedPayload = {
+  roomId: string;
+  fromParticipantId: string;
+  fromParticipantName: string;
+  originalText: string;
+  translatedText: string;
+  targetLanguage: string;
 };
 
 export type ServerToClientEvents = {
+  room_joined: (payload: RoomJoinedPayload) => void;
+  participant_joined: (payload: RoomParticipant) => void;
   "call-joined": (payload: CallJoinedPayload) => void;
   "waiting-for-participant": (payload: WaitingForParticipantPayload) => void;
   "call-ready": (payload: CallReadyPayload) => void;
@@ -91,14 +116,26 @@ export type ServerToClientEvents = {
   "webrtc-ice-candidate": (payload: WebRtcIceCandidateReceivedPayload) => void;
   "call-left": (payload: CallLeftPayload) => void;
   "participant-left-call": (payload: ParticipantLeftCallPayload) => void;
+  participant_removed_success: () => void;
+  room_expired: (payload: RoomExpiredPayload) => void;
+  voice_translation_received: (
+    payload: VoiceTranslationReceivedPayload,
+  ) => void;
   error: (payload: SocketEventErrorPayload) => void;
 };
 
 export type ClientToServerEvents = {
+  join_room: (payload: JoinRoomPayload) => void;
   "join-call": () => void;
   "participant-ready": () => void;
   "webrtc-offer": (payload: WebRtcOfferPayload) => void;
   "webrtc-answer": (payload: WebRtcAnswerPayload) => void;
   "webrtc-ice-candidate": (payload: WebRtcIceCandidatePayload) => void;
-  "leave-call": (payload: { reason?: LeaveCallReason }) => void;
+  "leave-call": (payload: { reason?: CallLeaveReason }) => void;
+  translate_speech: (payload: TranslateSpeechPayload) => void;
 };
+import type {
+  JoinRoomPayload,
+  RoomJoinedPayload,
+  RoomParticipant,
+} from "@/core/@types/room";

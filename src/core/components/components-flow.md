@@ -274,7 +274,6 @@ CreateRoomForm
 RoomAccessCard
 LanguageSelect
 ChatMessageItem
-TranslatedCaption
 ParticipantBadge
 ```
 

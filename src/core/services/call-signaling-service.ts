@@ -1,9 +1,10 @@
 import type {
+  CallLeaveReason,
   CallLeftPayload,
   CallJoinedPayload,
   CallReadyPayload,
-  LeaveCallReason,
   ParticipantLeftCallPayload,
+  RoomExpiredPayload,
   SocketEventErrorPayload,
   WaitingForParticipantPayload,
   WebRtcAnswerPayload,
@@ -24,6 +25,8 @@ import {
 } from "./webrtc-signaling-utils";
 
 const JOIN_CALL_TIMEOUT_MS = 10_000;
+const JOIN_CALL_RETRY_DELAY_MS = 300;
+const JOIN_CALL_RETRY_ATTEMPTS = 4;
 
 type NotifyParticipantReadyParams = {
   roomId: string;
@@ -40,6 +43,7 @@ type SubscribeToParticipantReadyParams = {
 type PendingJoinCall = {
   socketId: string;
   promise: Promise<CallJoinedPayload>;
+  cancel: () => void;
 };
 
 type ConfirmedJoinCall = {
@@ -144,11 +148,20 @@ export function joinCall() {
 
   confirmedJoinCall = null;
 
+  let cancel = () => undefined;
+
   const promise = new Promise<CallJoinedPayload>((resolve, reject) => {
     let isSettled = false;
+    let joinAttempt = 0;
+    let retryTimeoutId: number | null = null;
 
     const cleanup = () => {
       window.clearTimeout(timeoutId);
+
+      if (retryTimeoutId !== null) {
+        window.clearTimeout(retryTimeoutId);
+      }
+
       socket.off("call-joined", handleCallJoined);
       socket.off("error", handleError);
       socket.off("disconnect", handleDisconnect);
@@ -191,6 +204,21 @@ export function joinCall() {
         return;
       }
 
+      if (
+        payload.code === "PARTICIPANT_ALREADY_IN_CALL" &&
+        joinAttempt < JOIN_CALL_RETRY_ATTEMPTS
+      ) {
+        if (retryTimeoutId !== null) {
+          return;
+        }
+
+        retryTimeoutId = window.setTimeout(() => {
+          retryTimeoutId = null;
+          emitJoinCall();
+        }, JOIN_CALL_RETRY_DELAY_MS);
+        return;
+      }
+
       settle(() => {
         reject(
           new JoinCallRequestError({
@@ -213,6 +241,10 @@ export function joinCall() {
       });
     };
 
+    const emitJoinCall = () => {
+      joinAttempt += 1;
+      socket.emit("join-call");
+    };
     const timeoutId = window.setTimeout(() => {
       settle(() => {
         reject(
@@ -227,15 +259,27 @@ export function joinCall() {
     socket.on("call-joined", handleCallJoined);
     socket.on("error", handleError);
     socket.on("disconnect", handleDisconnect);
-    socket.emit("join-call");
+    cancel = () => {
+      settle(() => {
+        reject(
+          new JoinCallRequestError({
+            code: "JOIN_CALL_CANCELLED",
+            message: "A entrada na chamada foi cancelada.",
+          }),
+        );
+      });
+    };
+    emitJoinCall();
   });
 
-  pendingJoinCall = { socketId, promise };
+  pendingJoinCall = { socketId, promise, cancel };
 
   return promise;
 }
 
 export function resetJoinCall() {
+  pendingJoinCall?.cancel();
+  pendingJoinCall = null;
   confirmedJoinCall = null;
 }
 
@@ -380,6 +424,8 @@ type SubscribeToWebRtcSignalingParams = {
   onIceCandidate: (payload: WebRtcIceCandidateReceivedPayload) => void;
   onCallLeft?: (payload: CallLeftPayload) => void;
   onParticipantLeft: (payload: ParticipantLeftCallPayload) => void;
+  onLocalParticipantRemoved: () => void;
+  onRoomExpired: (payload: RoomExpiredPayload) => void;
   onError: (error: WebRtcSignalingError) => void;
   onDisconnect: () => void;
 };
@@ -467,7 +513,7 @@ export function sendWebRtcIceCandidate(payload: WebRtcIceCandidatePayload) {
 export function leaveCall({
   reason = "USER_LEFT",
 }: {
-  reason?: LeaveCallReason;
+  reason?: CallLeaveReason;
 } = {}) {
   assertConnectedSocket("leave-call").emit("leave-call", { reason });
 }
@@ -489,8 +535,19 @@ function isDescriptionSentPayload(
   );
 }
 
-function isLeaveCallReason(value: unknown): value is LeaveCallReason {
+function isCallLeaveReason(value: unknown): value is CallLeaveReason {
   return value === "USER_LEFT" || value === "CONNECTION_CLOSED";
+}
+
+function isCallTerminationReason(
+  value: unknown,
+): value is ParticipantLeftCallPayload["reason"] {
+  return (
+    isCallLeaveReason(value) ||
+    value === "PARTICIPANT_REMOVED" ||
+    value === "ROOM_CLOSED" ||
+    value === "ROOM_EXPIRED"
+  );
 }
 
 function isCallLeftPayload(payload: unknown): payload is CallLeftPayload {
@@ -505,7 +562,7 @@ function isCallLeftPayload(payload: unknown): payload is CallLeftPayload {
     candidate.roomId.length > 0 &&
     typeof candidate.participantId === "string" &&
     candidate.participantId.length > 0 &&
-    isLeaveCallReason(candidate.reason)
+    isCallLeaveReason(candidate.reason)
   );
 }
 
@@ -521,7 +578,22 @@ function isParticipantLeftCallPayload(
   return (
     typeof candidate.participantId === "string" &&
     candidate.participantId.length > 0 &&
-    isLeaveCallReason(candidate.reason)
+    isCallTerminationReason(candidate.reason)
+  );
+}
+
+function isRoomExpiredPayload(payload: unknown): payload is RoomExpiredPayload {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<RoomExpiredPayload>;
+
+  return (
+    typeof candidate.roomId === "string" &&
+    candidate.roomId.length > 0 &&
+    candidate.status === "EXPIRED" &&
+    (candidate.reason === undefined || typeof candidate.reason === "string")
   );
 }
 
@@ -533,6 +605,8 @@ export function subscribeToWebRtcSignaling({
   onIceCandidate,
   onCallLeft,
   onParticipantLeft,
+  onLocalParticipantRemoved,
+  onRoomExpired,
   onError,
   onDisconnect,
 }: SubscribeToWebRtcSignalingParams) {
@@ -611,6 +685,19 @@ export function subscribeToWebRtcSignaling({
     onParticipantLeft(payload);
   };
 
+  const handleLocalParticipantRemoved = () => {
+    onLocalParticipantRemoved();
+  };
+
+  const handleRoomExpired = (payload: unknown) => {
+    if (!isRoomExpiredPayload(payload)) {
+      reportInvalidPayload("room_expired");
+      return;
+    }
+
+    onRoomExpired(payload);
+  };
+
   const handleError = (payload: SocketEventErrorPayload) => {
     if (!WEBRTC_SIGNALING_EVENTS.has(payload.event)) {
       return;
@@ -632,6 +719,8 @@ export function subscribeToWebRtcSignaling({
   socket.on("webrtc-ice-candidate", handleIceCandidate);
   socket.on("call-left", handleCallLeft);
   socket.on("participant-left-call", handleParticipantLeft);
+  socket.on("participant_removed_success", handleLocalParticipantRemoved);
+  socket.on("room_expired", handleRoomExpired);
   socket.on("error", handleError);
   socket.on("disconnect", onDisconnect);
 
@@ -643,6 +732,8 @@ export function subscribeToWebRtcSignaling({
     socket.off("webrtc-ice-candidate", handleIceCandidate);
     socket.off("call-left", handleCallLeft);
     socket.off("participant-left-call", handleParticipantLeft);
+    socket.off("participant_removed_success", handleLocalParticipantRemoved);
+    socket.off("room_expired", handleRoomExpired);
     socket.off("error", handleError);
     socket.off("disconnect", onDisconnect);
   };

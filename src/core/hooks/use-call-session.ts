@@ -9,15 +9,15 @@ import {
 } from "@/core/services/call-signaling-service";
 import { useCallStore } from "@/core/store/call-store";
 
-import { useJoinCall } from "./use-join-call";
-import { useLocalMedia } from "./use-local-media";
-import { useMediaControls } from "./use-media-controls";
-import { useParticipantReady } from "./use-participant-ready";
-import { usePeerConnection } from "./use-peer-connection";
+import { useJoinCall } from "@/core/hooks/use-join-call";
+import { useLocalMedia } from "@/core/hooks/use-local-media";
+import { useMediaControls } from "@/core/hooks/use-media-controls";
+import { useParticipantReady } from "@/core/hooks/use-participant-ready";
+import { usePeerConnection } from "@/core/hooks/use-peer-connection";
 import {
   type CallTermination,
   useWebRtcSignaling,
-} from "./use-webrtc-signaling";
+} from "@/core/hooks/use-webrtc-signaling";
 
 export function useCallSession() {
   const {
@@ -205,3 +205,5 @@ export function useCallSession() {
     ...mediaControls,
   };
 }
+
+export type CallSession = ReturnType<typeof useCallSession>;

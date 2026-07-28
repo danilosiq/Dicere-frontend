@@ -1,5 +1,10 @@
 import { HomeScreen } from "@/core/features/home";
+import { Suspense } from "react";
 
 export default function HomePage() {
-  return <HomeScreen />;
+  return (
+    <Suspense fallback={null}>
+      <HomeScreen />
+    </Suspense>
+  );
 }

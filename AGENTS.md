@@ -8,7 +8,7 @@ Este arquivo registra os combinados do projeto para reutilização nos próximos
 
 Este repositório é o frontend do Dicere, responsável pela interface de criação, acesso e uso das salas de comunicação em tempo real entre dois participantes.
 
-O frontend deve permitir criação de sala, entrada via URL e senha, escolha de nickname, configuração de idiomas, chamada com legenda traduzida em tempo real e chat com tradução sob demanda.
+O frontend deve permitir criação de sala, entrada via URL e senha, escolha de nickname, configuração de idiomas, chamada em tempo real e chat com tradução sob demanda.
 
 O foco é um MVP funcional, priorizando clareza de uso, organização por feature, baixo acoplamento e fidelidade às regras de negócio definidas.
 
@@ -69,8 +69,6 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 - Cada participante deve selecionar:
   - idioma que fala
   - idioma em que deseja receber tradução
-- A fala deve ser transcrita e traduzida em tempo real
-- A tradução da fala deve aparecer em formato de legenda
 - A sala deve possuir chat textual
 - Mensagens do chat podem ser traduzidas sob demanda
 - A tradução do chat deve respeitar o idioma de destino do usuário solicitante

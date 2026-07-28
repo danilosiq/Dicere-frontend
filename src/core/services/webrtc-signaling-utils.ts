@@ -93,22 +93,18 @@ export function canCreateOffer({
 
 export function canApplyOffer({
   signalingState,
-  hasRemoteDescription,
 }: {
   signalingState: RTCSignalingState;
-  hasRemoteDescription: boolean;
 }) {
-  return signalingState === "stable" && !hasRemoteDescription;
+  return signalingState === "stable";
 }
 
 export function canApplyAnswer({
   signalingState,
-  hasRemoteDescription,
 }: {
   signalingState: RTCSignalingState;
-  hasRemoteDescription: boolean;
 }) {
-  return signalingState === "have-local-offer" && !hasRemoteDescription;
+  return signalingState === "have-local-offer";
 }
 
 export function shouldQueueIceCandidate(

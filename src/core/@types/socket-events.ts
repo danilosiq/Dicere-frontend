@@ -1,3 +1,15 @@
+import type {
+  ChatMessagesListPayload,
+  ChatMessage,
+  ListChatMessagesPayload,
+  SendChatMessagePayload,
+} from "@/core/@types/chat";
+import type {
+  JoinRoomPayload,
+  RoomJoinedPayload,
+  RoomParticipant,
+} from "@/core/@types/room";
+
 export type CallJoinedPayload = {
   roomId: string;
   participantId: string;
@@ -5,9 +17,10 @@ export type CallJoinedPayload = {
 };
 
 export type SocketEventErrorPayload = {
-  event: string;
-  code: string;
+  event?: string;
+  code?: string;
   message: string;
+  issues?: unknown;
 };
 
 export type WaitingForParticipantPayload = {
@@ -89,9 +102,40 @@ export type RoomExpiredPayload = {
   reason?: string;
 };
 
+export type SpeechSegmentStatus = "provisional" | "final";
+
+export type SpeechTranslationTimings = {
+  queueWaitMs?: number;
+  processingMs?: number;
+  translationDurationMs?: number;
+};
+
+export type SpeechTranslationMetadata = {
+  segmentId: string;
+  sequence: number;
+  revision: number;
+  status: SpeechSegmentStatus;
+  traceId: string;
+  clientSentAt: number | string;
+  sourceLanguage: string;
+  previousContext?: string;
+};
+
 export type TranslateSpeechPayload = {
   roomId: string;
   text: string;
+} & Partial<SpeechTranslationMetadata>;
+
+export type TranslateSpeechAcknowledgement = {
+  result: "ok" | "duplicate" | "error";
+  segmentId?: string;
+  revision?: number;
+  traceId?: string;
+  timings?: SpeechTranslationTimings;
+  error?: {
+    code: string;
+    message: string;
+  };
 };
 
 export type VoiceTranslationReceivedPayload = {
@@ -101,11 +145,16 @@ export type VoiceTranslationReceivedPayload = {
   originalText: string;
   translatedText: string;
   targetLanguage: string;
-};
+  serverSentAt?: number;
+  timings?: SpeechTranslationTimings;
+} & Partial<SpeechTranslationMetadata>;
 
 export type ServerToClientEvents = {
   room_joined: (payload: RoomJoinedPayload) => void;
   participant_joined: (payload: RoomParticipant) => void;
+  message_sent: (payload: ChatMessage) => void;
+  message_received: (payload: ChatMessage) => void;
+  messages_list: (payload: ChatMessagesListPayload) => void;
   "call-joined": (payload: CallJoinedPayload) => void;
   "waiting-for-participant": (payload: WaitingForParticipantPayload) => void;
   "call-ready": (payload: CallReadyPayload) => void;
@@ -126,16 +175,16 @@ export type ServerToClientEvents = {
 
 export type ClientToServerEvents = {
   join_room: (payload: JoinRoomPayload) => void;
+  send_message: (payload: SendChatMessagePayload) => void;
+  list_messages: (payload: ListChatMessagesPayload) => void;
   "join-call": () => void;
   "participant-ready": () => void;
   "webrtc-offer": (payload: WebRtcOfferPayload) => void;
   "webrtc-answer": (payload: WebRtcAnswerPayload) => void;
   "webrtc-ice-candidate": (payload: WebRtcIceCandidatePayload) => void;
   "leave-call": (payload: { reason?: CallLeaveReason }) => void;
-  translate_speech: (payload: TranslateSpeechPayload) => void;
+  translate_speech: (
+    payload: TranslateSpeechPayload,
+    acknowledgement: (payload: TranslateSpeechAcknowledgement) => void,
+  ) => void;
 };
-import type {
-  JoinRoomPayload,
-  RoomJoinedPayload,
-  RoomParticipant,
-} from "@/core/@types/room";

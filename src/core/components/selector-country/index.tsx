@@ -2,7 +2,14 @@
 
 import * as Flags from "country-flag-icons/react/3x2";
 import { Check, ChevronDown, Languages } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 import { cn } from "@/core/utils/cn";
 
@@ -12,6 +19,11 @@ import type {
   DeepLTargetLanguage,
   SelectorCountryProps,
 } from "./types";
+
+const DROPDOWN_GAP_PX = 4;
+const DROPDOWN_MAX_HEIGHT_PX = 288;
+
+type DropdownPlacement = "bottom" | "top";
 
 function CountryFlag({ option }: { option: CountryOption }) {
   const FlagComponent = Flags[option.flag];
@@ -32,6 +44,7 @@ export function SelectorCountry({
   value,
   defaultValue,
   placeholder = "Selecionar idioma",
+  hideLabelText = false,
   disabled = false,
   className,
   onSelect,
@@ -40,6 +53,11 @@ export function SelectorCountry({
     DeepLTargetLanguage | undefined
   >(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPlacement, setDropdownPlacement] =
+    useState<DropdownPlacement>("bottom");
+  const [dropdownMaxHeight, setDropdownMaxHeight] = useState(
+    DROPDOWN_MAX_HEIGHT_PX,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -53,6 +71,29 @@ export function SelectorCountry({
     (option) => option.label === selectedValue,
   );
 
+  const updateDropdownPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+
+    if (!trigger) {
+      return;
+    }
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const spaceAbove = Math.max(0, triggerRect.top - DROPDOWN_GAP_PX);
+    const spaceBelow = Math.max(
+      0,
+      window.innerHeight - triggerRect.bottom - DROPDOWN_GAP_PX,
+    );
+    const placement: DropdownPlacement =
+      spaceBelow >= DROPDOWN_MAX_HEIGHT_PX || spaceBelow >= spaceAbove
+        ? "bottom"
+        : "top";
+    const availableSpace = placement === "bottom" ? spaceBelow : spaceAbove;
+
+    setDropdownPlacement(placement);
+    setDropdownMaxHeight(Math.min(DROPDOWN_MAX_HEIGHT_PX, availableSpace));
+  }, []);
+
   useEffect(() => {
     if (!dropdownIsOpen) {
       return;
@@ -65,14 +106,22 @@ export function SelectorCountry({
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [dropdownIsOpen]);
+    document.addEventListener("scroll", updateDropdownPosition, true);
+    window.addEventListener("resize", updateDropdownPosition);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("scroll", updateDropdownPosition, true);
+      window.removeEventListener("resize", updateDropdownPosition);
+    };
+  }, [dropdownIsOpen, updateDropdownPosition]);
 
   function openDropdown() {
     if (disabled) {
       return;
     }
 
+    updateDropdownPosition();
     setIsOpen(true);
     requestAnimationFrame(() => {
       optionRefs.current[selectedIndex >= 0 ? selectedIndex : 0]?.focus();
@@ -132,16 +181,24 @@ export function SelectorCountry({
   }
 
   return (
-    <div className="relative w-full" ref={containerRef}>
+    <div
+      className={cn("relative", hideLabelText ? "w-auto shrink-0" : "w-full")}
+      ref={containerRef}
+    >
       <button
         aria-controls={dropdownIsOpen ? listboxId : undefined}
         aria-expanded={dropdownIsOpen}
         aria-haspopup="listbox"
-        aria-label="Selecionar idioma"
+        aria-label={
+          selectedOption
+            ? `Selecionar idioma: ${selectedOption.label}`
+            : "Selecionar idioma"
+        }
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm",
           "focus-visible:ring-primary-green focus-visible:ring-2 focus-visible:outline-none",
           "dark:focus-visible:ring-light-green disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-900",
+          hideLabelText && "w-auto px-2",
           className,
         )}
         disabled={disabled}
@@ -150,16 +207,20 @@ export function SelectorCountry({
         ref={triggerRef}
         type="button"
       >
-        <Languages
-          aria-hidden="true"
-          className="text-primary-green dark:text-light-green size-4 shrink-0"
-        />
+        {(!hideLabelText || !selectedOption) && (
+          <Languages
+            aria-hidden="true"
+            className="text-primary-green dark:text-light-green size-4 shrink-0"
+          />
+        )}
 
         {selectedOption && <CountryFlag option={selectedOption} />}
 
-        <span className="min-w-0 flex-1 truncate text-left">
-          {selectedOption?.label ?? placeholder}
-        </span>
+        {!hideLabelText && (
+          <span className="min-w-0 flex-1 truncate text-left">
+            {selectedOption?.label ?? placeholder}
+          </span>
+        )}
 
         <ChevronDown
           aria-hidden="true"
@@ -173,9 +234,14 @@ export function SelectorCountry({
       {dropdownIsOpen && (
         <div
           aria-label="Idiomas disponíveis"
-          className="absolute top-full right-0 left-0 z-50 mt-1 max-h-72 overflow-y-auto rounded-lg bg-white p-1 shadow-lg ring-1 ring-black/10 dark:bg-gray-900 dark:ring-white/10"
+          className={cn(
+            "absolute right-0 z-50 overflow-y-auto rounded-lg bg-white p-1 shadow-lg ring-1 ring-black/10 dark:bg-gray-900 dark:ring-white/10",
+            dropdownPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1",
+            hideLabelText ? "min-w-40" : "left-0",
+          )}
           id={listboxId}
           role="listbox"
+          style={{ maxHeight: dropdownMaxHeight }}
         >
           {COUNTRY_LIST.map((option, index) => {
             const isSelected = option.label === selectedValue;

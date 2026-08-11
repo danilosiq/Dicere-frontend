@@ -40,7 +40,7 @@ export function VideoSection({ call }: { call: CallSession }) {
         : "Conectando o vídeo do outro participante...";
 
   return (
-    <Row className="relative h-full flex-1 bg-gray-100 p-4 dark:bg-black">
+    <Row className="relative min-h-0 flex-1 bg-gray-100 p-4 dark:bg-black">
       <Row className="relative min-w-0 flex-1 overflow-hidden rounded-xl border-2 dark:bg-gray-900">
         <SubtitleCamp
           captionIssue={speechTranslation.captionIssue}

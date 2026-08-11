@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,9 +17,11 @@ export type IconButtonProps = {
   isActive?: boolean;
   tooltip?: string;
   ariaLabel?: string;
+  ariaBusy?: boolean;
   disabled?: boolean;
   className?: string;
   onClick?: () => void;
+  type?: ButtonHTMLAttributes<HTMLButtonElement>["type"];
 };
 
 export function IconButton({
@@ -28,13 +30,16 @@ export function IconButton({
   isActive,
   tooltip,
   ariaLabel,
+  ariaBusy,
   disabled = false,
   className,
   onClick,
+  type = "button",
 }: IconButtonProps) {
   const button = (
     <Button
       aria-label={ariaLabel ?? tooltip}
+      aria-busy={ariaBusy}
       aria-pressed={isActive === undefined ? undefined : isActive}
       className={cn(
         "hover:bg-primary-green dark:hover:bg-primary-green relative size-10 rounded-full p-1.5 text-gray-400 hover:text-white active:scale-95 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:active:scale-100 dark:text-gray-200 dark:disabled:hover:text-gray-200",
@@ -46,7 +51,7 @@ export function IconButton({
       disabled={disabled}
       onClick={onClick}
       size="unset"
-      type="button"
+      type={type}
       variant="ghost"
     >
       <span

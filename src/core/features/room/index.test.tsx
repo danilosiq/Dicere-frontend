@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
     hasMicrophone: true,
     hasCamera: true,
     isLeaving: false,
+    termination: null as
+      | { type: "local-participant-removed" }
+      | { type: "room-expired"; payload: { roomId: string; status: "EXPIRED" } }
+      | null,
     leaveCall: vi.fn(),
     toggleMicrophone: vi.fn(),
     toggleCamera: vi.fn(),
@@ -54,6 +58,7 @@ describe("RoomScreen call tools", () => {
     mocks.callSession.leaveCall.mockReset();
     mocks.callSession.toggleMicrophone.mockReset();
     mocks.callSession.toggleCamera.mockReset();
+    mocks.callSession.termination = null;
     window.sessionStorage.setItem("dicere-room-session", "stored-session");
     useRoomSessionStore.setState({
       room: {
@@ -106,5 +111,21 @@ describe("RoomScreen call tools", () => {
     expect(useRoomSessionStore.getState().resumeSession).toBeNull();
     expect(window.sessionStorage.getItem("dicere-room-session")).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith("/");
+  });
+
+  it("clears the room session and returns Home when the room expires", async () => {
+    const view = render(<RoomScreen />);
+
+    mocks.callSession.termination = {
+      type: "room-expired",
+      payload: { roomId: "room-id", status: "EXPIRED" },
+    };
+    view.rerender(<RoomScreen />);
+
+    await vi.waitFor(() => {
+      expect(useRoomSessionStore.getState().isJoined).toBe(false);
+      expect(mocks.replace).toHaveBeenCalledWith("/");
+    });
+    expect(window.sessionStorage.getItem("dicere-room-session")).toBeNull();
   });
 });

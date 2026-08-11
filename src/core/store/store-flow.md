@@ -72,7 +72,6 @@ Exemplos:
 - permissões da sessão
 - microfone ligado
 - câmera ligada
-- legenda atual
 
 ---
 
@@ -86,6 +85,7 @@ Não utilizar Zustand para:
 - valor de input
 - paginação local
 - filtros locais
+- blobs de áudio, streams, gravadores ou fila de upload
 - estados usados apenas por um componente
 
 Nestes casos utilizar:
@@ -158,8 +158,6 @@ roomId;
 participantId;
 nickname;
 isConnected;
-isListening;
-currentCaption;
 targetLanguage;
 ```
 

@@ -188,7 +188,7 @@ const InputText = forwardRef<HTMLInputElement, InputTextProps>(
           <Typography
             className="text-error block"
             color="error"
-            darkColor="error"
+            darkColor="white"
             size="sm"
           >
             <span id={errorId}>{error}</span>

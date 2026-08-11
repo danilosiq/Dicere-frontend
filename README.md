@@ -25,9 +25,9 @@ Copie `.env.example` para `.env.local` e ajuste os endpoints antes de iniciar.
 - `src/app`: rotas, layouts, API routes e providers do App Router.
 - `src/components`: componentes globais usados por múltiplas features e shadcn/ui.
 - `src/features`: páginas e código específico de cada domínio.
-- `src/hooks`: hooks compartilhados, incluindo integrações de query e socket.
-- `src/services`: clientes compartilhados de HTTP e Socket.IO.
-- `src/store`: estado global Zustand.
+- `src/core/hooks`: hooks compartilhados, incluindo reconhecimento de voz com `react-speech-recognition` e integrações de socket.
+- `src/core/services`: clientes compartilhados de HTTP e Socket.IO.
+- `src/core/store`: estado global Zustand.
 - `src/styles`: tokens de cor, tipografia e temas.
 - `src/@types`: tipos compartilhados.
 - `src/utils`: utilitários sem regra de negócio.

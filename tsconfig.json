@@ -28,8 +28,7 @@
       "@/utils/*": ["./src/core/utils/*"],
       "@/styles/*": ["./src/styles/*"],
       "@/store/*": ["./src/core/store/*"],
-      "@/@types/*": ["./src/core/@types/*"],
-      "@/images/*": ["./src/core/assets/images/*"]
+      "@/@types/*": ["./src/core/@types/*"]
     }
   },
   "include": [

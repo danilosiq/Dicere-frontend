@@ -3,7 +3,7 @@ import { Column } from "@/core/components/layout";
 import { JoinRoomForm } from "@/core/forms";
 import type { JoinRoomSchemaType } from "@/core/forms/join-room-form/schema";
 import { Typography } from "@/core/components/typography";
-import PasswordImage from "@/images/password-image.png";
+import PasswordImage from "@/core/assets/images/password-image.png";
 import Image from "next/image";
 import type { DeepLTargetLanguage } from "@/core/components";
 

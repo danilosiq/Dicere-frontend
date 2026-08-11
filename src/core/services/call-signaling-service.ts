@@ -222,7 +222,7 @@ export function joinCall() {
       settle(() => {
         reject(
           new JoinCallRequestError({
-            code: payload.code,
+            code: payload.code ?? "JOIN_CALL_FAILED",
             message: payload.message,
           }),
         );
@@ -699,7 +699,11 @@ export function subscribeToWebRtcSignaling({
   };
 
   const handleError = (payload: SocketEventErrorPayload) => {
-    if (!WEBRTC_SIGNALING_EVENTS.has(payload.event)) {
+    if (
+      typeof payload.event !== "string" ||
+      typeof payload.code !== "string" ||
+      !WEBRTC_SIGNALING_EVENTS.has(payload.event)
+    ) {
       return;
     }
 

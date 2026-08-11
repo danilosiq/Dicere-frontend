@@ -35,6 +35,8 @@ export function SubtitleCamp({
   retryRecognition,
 }: SubtitleCampProps) {
   const historyRef = useRef<HTMLDivElement>(null);
+  const visibleTranslations = translations.slice(-3);
+  const latestTranslation = translations[translations.length - 1];
   const issueButtonClassName = captionIssue
     ? cn(
         "shrink-0",
@@ -96,16 +98,27 @@ export function SubtitleCamp({
 
       <div
         aria-label="Legenda traduzida"
-        aria-live="polite"
-        className="min-h-0 flex-1 scrollbar-none overflow-y-auto overscroll-contain px-4 [&::-webkit-scrollbar]:hidden"
+        className="flex min-h-0 flex-1 scrollbar-none flex-col gap-4 overflow-y-auto overscroll-contain px-4 [&::-webkit-scrollbar]:hidden"
         ref={historyRef}
         tabIndex={0}
       >
-        {translations.map((translation) => (
-          <Typography className="mb-4" color="white" key={translation.sequence}>
-            {translation.translatedText}
-          </Typography>
+        {visibleTranslations.map((translation) => (
+          <p
+            key={`${translation.fromParticipantId}:${translation.segmentId ?? translation.sequence}`}
+          >
+            <Typography color="white">{translation.translatedText} </Typography>
+          </p>
         ))}
+      </div>
+
+      <div
+        aria-atomic="true"
+        aria-label="Nova legenda traduzida"
+        aria-live="polite"
+        className="sr-only"
+        role="status"
+      >
+        {latestTranslation?.translatedText}
       </div>
     </Column>
   );

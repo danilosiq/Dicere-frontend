@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   recognition: {
     transcript: "",
+    interimTranscript: "",
     finalTranscript: "",
     listening: true,
     browserSupportsSpeechRecognition: true,
@@ -15,7 +16,9 @@ const mocks = vi.hoisted(() => ({
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   },
-  sendSpeech: vi.fn(({ text }: { text: string }) => [text]),
+  sendSpeech: vi.fn(),
+  splitSpeech: vi.fn((text: string) => [text.trim()]),
+  recordMetric: vi.fn(),
   onTranslation: null as null | ((payload: unknown) => void),
   onSocketError: null as null | ((message: string) => void),
   unsubscribe: vi.fn(),
@@ -32,7 +35,9 @@ vi.mock("react-speech-recognition", () => ({
 }));
 
 vi.mock("@/core/services/speech-translation-service", () => ({
+  recordSpeechTranslationMetric: mocks.recordMetric,
   sendSpeechForTranslation: mocks.sendSpeech,
+  splitSpeechText: mocks.splitSpeech,
   subscribeToSpeechTranslations: ({
     onTranslation,
     onError,
@@ -56,7 +61,14 @@ import {
 } from "@/core/hooks/use-speech-translation";
 
 type NativeEventName =
-  "audiostart" | "end" | "error" | "nomatch" | "result" | "speechend" | "start";
+  | "audiostart"
+  | "end"
+  | "error"
+  | "nomatch"
+  | "result"
+  | "speechend"
+  | "speechstart"
+  | "start";
 
 function getNativeHandler(eventName: NativeEventName) {
   const registrations =
@@ -88,6 +100,7 @@ describe("useSpeechTranslation", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mocks.recognition.transcript = "";
+    mocks.recognition.interimTranscript = "";
     mocks.recognition.finalTranscript = "";
     mocks.recognition.listening = true;
     mocks.recognition.browserSupportsSpeechRecognition = true;
@@ -97,7 +110,30 @@ describe("useSpeechTranslation", () => {
     mocks.nativeRecognition.addEventListener.mockClear();
     mocks.nativeRecognition.removeEventListener.mockClear();
     mocks.sendSpeech.mockReset();
-    mocks.sendSpeech.mockImplementation(({ text }: { text: string }) => [text]);
+    mocks.sendSpeech.mockImplementation(
+      (
+        payload: {
+          text: string;
+          segmentId?: string;
+          revision?: number;
+          traceId?: string;
+        },
+        options?: {
+          onAcknowledged?: (payload: unknown, acknowledgement: unknown) => void;
+        },
+      ) => {
+        options?.onAcknowledged?.(payload, {
+          result: "ok",
+          segmentId: payload.segmentId,
+          revision: payload.revision,
+          traceId: payload.traceId,
+        });
+        return [payload.text];
+      },
+    );
+    mocks.splitSpeech.mockClear();
+    mocks.splitSpeech.mockImplementation((text: string) => [text.trim()]);
+    mocks.recordMetric.mockClear();
     mocks.onTranslation = null;
     mocks.onSocketError = null;
     mocks.unsubscribe.mockReset();
@@ -126,26 +162,43 @@ describe("useSpeechTranslation", () => {
     mocks.recognition.finalTranscript = "Olá";
     rerender({ enabled: true });
 
-    expect(mocks.sendSpeech).toHaveBeenCalledWith({
-      roomId: "room-1",
-      text: "Olá",
-    });
+    expect(mocks.sendSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: "room-1",
+        text: "Olá",
+        segmentId: expect.any(String),
+        sequence: 1,
+        revision: 1,
+        status: "final",
+        traceId: expect.any(String),
+        clientSentAt: expect.any(Number),
+        sourceLanguage: "PT-BR",
+      }),
+      expect.any(Object),
+    );
 
     mocks.recognition.transcript = "Olá mundo";
     rerender({ enabled: true });
     act(() => vi.advanceTimersByTime(SPEECH_SILENCE_TIMEOUT_MS));
+    mocks.recognition.finalTranscript = "Olá mundo";
+    rerender({ enabled: true });
     emitNative("end");
     act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
 
     expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
-    expect(mocks.sendSpeech).toHaveBeenLastCalledWith({
-      roomId: "room-1",
-      text: "mundo",
-    });
+    expect(mocks.sendSpeech).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        roomId: "room-1",
+        text: "mundo",
+        sequence: 2,
+        previousContext: "Olá",
+      }),
+      expect.any(Object),
+    );
     expect(mocks.startListening).toHaveBeenCalledTimes(2);
   });
 
-  it("pede finalização 150 ms depois de speechend e usa o fallback terminal", () => {
+  it("pede finalização 150 ms depois de speechend sem promover interim", () => {
     const { rerender } = renderSpeechHook();
     emitNative("start");
     mocks.recognition.transcript = "Trecho reconhecido";
@@ -161,10 +214,7 @@ describe("useSpeechTranslation", () => {
 
     emitNative("end");
     act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).toHaveBeenCalledWith({
-      roomId: "room-1",
-      text: "Trecho reconhecido",
-    });
+    expect(mocks.sendSpeech).not.toHaveBeenCalled();
   });
 
   it("usa 400 ms como fallback de silêncio", () => {
@@ -182,7 +232,7 @@ describe("useSpeechTranslation", () => {
 
     emitNative("end");
     act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
+    expect(mocks.sendSpeech).not.toHaveBeenCalled();
   });
 
   it("corta fala contínua depois de dois segundos", () => {
@@ -204,11 +254,7 @@ describe("useSpeechTranslation", () => {
 
     emitNative("end");
     act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).toHaveBeenLastCalledWith({
-      roomId: "room-1",
-      text: mocks.recognition.transcript,
-    });
+    expect(mocks.sendSpeech).not.toHaveBeenCalled();
   });
 
   it("mantém o issue durante a retomada e só o limpa após resultado real", () => {
@@ -364,18 +410,20 @@ describe("useSpeechTranslation", () => {
     rerender({ enabled: true });
 
     expect(mocks.sendSpeech).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).toHaveBeenCalledWith({
-      roomId: "room-1",
-      text: "texto final",
-    });
+    expect(mocks.sendSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: "room-1",
+        text: "texto final",
+        status: "final",
+      }),
+      expect.any(Object),
+    );
   });
 
   it("retry de entrega reenvia somente o trecho pendente", () => {
-    mocks.sendSpeech
-      .mockImplementationOnce(() => {
-        throw new Error("Socket desconectado");
-      })
-      .mockImplementationOnce(({ text }: { text: string }) => [text]);
+    mocks.sendSpeech.mockImplementationOnce(() => {
+      throw new Error("Socket desconectado");
+    });
     const { rerender } = renderSpeechHook();
     emitNative("start");
     mocks.recognition.transcript = "final";
@@ -387,10 +435,216 @@ describe("useSpeechTranslation", () => {
     act(() => vi.advanceTimersByTime(1_000));
 
     expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
-    expect(mocks.sendSpeech).toHaveBeenLastCalledWith({
+    const firstPayload = mocks.sendSpeech.mock.calls[0]?.[0];
+    const retriedPayload = mocks.sendSpeech.mock.calls[1]?.[0];
+    expect(retriedPayload).toEqual(firstPayload);
+  });
+
+  it("substitui revisões do mesmo segmento e ordena por sequence", () => {
+    const { result } = renderSpeechHook();
+    const baseTranslation = {
       roomId: "room-1",
-      text: "final",
+      fromParticipantId: "participant-2",
+      fromParticipantName: "Maria",
+      originalText: "Hello",
+      targetLanguage: "PT-BR",
+      sourceLanguage: "EN",
+    };
+
+    act(() => {
+      mocks.onTranslation?.({
+        ...baseTranslation,
+        translatedText: "Mundo provisório",
+        segmentId: "segment-2",
+        sequence: 2,
+        revision: 1,
+        status: "provisional",
+        traceId: "trace-2",
+      });
+      mocks.onTranslation?.({
+        ...baseTranslation,
+        translatedText: "Olá",
+        segmentId: "segment-1",
+        sequence: 1,
+        revision: 1,
+        status: "final",
+        traceId: "trace-1",
+      });
+      mocks.onTranslation?.({
+        ...baseTranslation,
+        translatedText: "Mundo final",
+        segmentId: "segment-2",
+        sequence: 2,
+        revision: 2,
+        status: "final",
+        traceId: "trace-2",
+      });
     });
+
+    expect(result.current.translations).toEqual([
+      expect.objectContaining({
+        segmentId: "segment-1",
+        sequence: 1,
+        translatedText: "Olá",
+      }),
+      expect.objectContaining({
+        segmentId: "segment-2",
+        sequence: 2,
+        revision: 2,
+        status: "final",
+        translatedText: "Mundo final",
+      }),
+    ]);
+  });
+
+  it("ignora duplicatas, revisões antigas e reabertura de segmento final", () => {
+    const { result } = renderSpeechHook();
+    const finalTranslation = {
+      roomId: "room-1",
+      fromParticipantId: "participant-2",
+      fromParticipantName: "Maria",
+      originalText: "Hello",
+      translatedText: "Final",
+      targetLanguage: "PT-BR",
+      segmentId: "segment-1",
+      sequence: 1,
+      revision: 2,
+      status: "final",
+      traceId: "trace-1",
+    };
+
+    act(() => {
+      mocks.onTranslation?.(finalTranslation);
+      mocks.onTranslation?.(finalTranslation);
+      mocks.onTranslation?.({
+        ...finalTranslation,
+        translatedText: "Antiga",
+        revision: 1,
+      });
+      mocks.onTranslation?.({
+        ...finalTranslation,
+        translatedText: "Provisória",
+        revision: 3,
+        status: "provisional",
+      });
+    });
+
+    expect(result.current.translations).toEqual([
+      expect.objectContaining({
+        translatedText: "Final",
+        revision: 2,
+        status: "final",
+      }),
+    ]);
+  });
+
+  it("limita o histórico recebido a cem segmentos", () => {
+    const { result } = renderSpeechHook();
+
+    act(() => {
+      for (let sequence = 1; sequence <= 105; sequence += 1) {
+        mocks.onTranslation?.({
+          roomId: "room-1",
+          fromParticipantId: "participant-2",
+          fromParticipantName: "Maria",
+          originalText: `Original ${sequence}`,
+          translatedText: `Tradução ${sequence}`,
+          targetLanguage: "PT-BR",
+          segmentId: `segment-${sequence}`,
+          sequence,
+          revision: 1,
+          status: "final",
+          traceId: `trace-${sequence}`,
+        });
+      }
+    });
+
+    expect(result.current.translations).toHaveLength(100);
+    expect(result.current.translations[0]?.sequence).toBe(6);
+    expect(result.current.translations.at(-1)?.sequence).toBe(105);
+  });
+
+  it("reinicia histórico, sequências e contexto ao trocar de sala", () => {
+    const { result, rerender } = renderHook(
+      ({ roomId }) =>
+        useSpeechTranslation({
+          roomId,
+          language: "PT-BR",
+          enabled: true,
+        }),
+      { initialProps: { roomId: "room-1" } },
+    );
+
+    act(() =>
+      mocks.onTranslation?.({
+        roomId: "room-1",
+        fromParticipantId: "participant-2",
+        fromParticipantName: "Maria",
+        originalText: "Hello",
+        translatedText: "Olá",
+        targetLanguage: "PT-BR",
+      }),
+    );
+    expect(result.current.translations).toHaveLength(1);
+
+    rerender({ roomId: "room-2" });
+
+    expect(result.current.translations).toEqual([]);
+    expect(mocks.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("mede primeiro interim, primeiro final, segmentação e commit", () => {
+    const { rerender } = renderSpeechHook();
+    emitNative("start");
+    emitNative("speechstart");
+
+    act(() => vi.advanceTimersByTime(25));
+    mocks.recognition.interimTranscript = "Olá";
+    mocks.recognition.transcript = "Olá";
+    rerender({ enabled: true });
+
+    act(() => vi.advanceTimersByTime(25));
+    mocks.recognition.interimTranscript = "";
+    mocks.recognition.finalTranscript = "Olá";
+    rerender({ enabled: true });
+
+    act(() =>
+      mocks.onTranslation?.({
+        roomId: "room-1",
+        fromParticipantId: "participant-2",
+        fromParticipantName: "Maria",
+        originalText: "Hello",
+        translatedText: "Olá",
+        targetLanguage: "PT-BR",
+        segmentId: "received-1",
+        sequence: 1,
+        revision: 1,
+        status: "final",
+        traceId: "received-trace-1",
+      }),
+    );
+
+    expect(mocks.recordMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "recognition_first_interim",
+        durationMs: expect.any(Number),
+      }),
+    );
+    expect(mocks.recordMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "recognition_first_final",
+        durationMs: expect.any(Number),
+      }),
+    );
+    expect(mocks.recordMetric).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "segment_ready" }),
+    );
+    expect(mocks.recordMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "commit",
+        segmentId: "received-1",
+      }),
+    );
   });
 
   it("mantém somente o contrato público necessário para a UI", () => {
@@ -418,7 +672,14 @@ describe("useSpeechTranslation", () => {
     act(() => mocks.onTranslation?.(translation));
 
     expect(result.current.translations).toEqual([
-      { ...translation, sequence: 1 },
+      expect.objectContaining({
+        ...translation,
+        segmentId: "legacy-1",
+        sequence: 1,
+        revision: 1,
+        status: "final",
+        traceId: "legacy-1",
+      }),
     ]);
     expect(result.current.captionIssue?.status).toBe("retry_wait");
   });

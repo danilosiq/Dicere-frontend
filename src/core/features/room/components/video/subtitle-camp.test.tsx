@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReceivedVoiceTranslation } from "@/core/hooks/use-speech-translation";
@@ -46,10 +46,11 @@ describe("SubtitleCamp", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Selecionar idioma" }),
+      screen.getByRole("button", { name: "Selecionar idioma: PT-BR" }),
     ).toBeTruthy();
-    expect(screen.getByText("Primeira tradução")).toBeTruthy();
-    expect(screen.getByText("Segunda tradução")).toBeTruthy();
+    const feed = screen.getByLabelText("Legenda traduzida");
+    expect(within(feed).getByText("Primeira tradução")).toBeTruthy();
+    expect(within(feed).getByText("Segunda tradução")).toBeTruthy();
     expect(screen.queryByText(/você:/i)).toBeNull();
     expect(screen.queryByText(/sua fala reconhecida/i)).toBeNull();
     expect(screen.queryByText(/reconhecimento/i)).toBeNull();
@@ -152,5 +153,66 @@ describe("SubtitleCamp", () => {
     );
 
     expect(feed.scrollTop).toBe(240);
+  });
+
+  it("mantém visíveis somente as três traduções mais recentes", () => {
+    render(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[
+          makeTranslation(1, "Primeira"),
+          makeTranslation(2, "Segunda"),
+          makeTranslation(3, "Terceira"),
+          makeTranslation(4, "Quarta"),
+          makeTranslation(5, "Quinta"),
+        ]}
+      />,
+    );
+
+    const feed = screen.getByLabelText("Legenda traduzida");
+    expect(within(feed).queryByText("Primeira")).toBeNull();
+    expect(within(feed).queryByText("Segunda")).toBeNull();
+    expect(within(feed).getByText("Terceira")).toBeTruthy();
+    expect(within(feed).getByText("Quarta")).toBeTruthy();
+    expect(within(feed).getByText("Quinta")).toBeTruthy();
+    expect(feed.childElementCount).toBe(3);
+  });
+
+  it("separa as traduções em blocos e mantém separador textual", () => {
+    render(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[
+          makeTranslation(1, "Danilo"),
+          makeTranslation(2, "Nice"),
+        ]}
+      />,
+    );
+
+    const feed = screen.getByLabelText("Legenda traduzida");
+    expect(
+      Array.from(feed.children).every((item) => item.tagName === "P"),
+    ).toBe(true);
+    expect(feed.textContent).toBe("Danilo Nice ");
+  });
+
+  it("anuncia somente a tradução mais recente fora do histórico", () => {
+    render(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[
+          makeTranslation(1, "Anterior"),
+          makeTranslation(2, "Mais recente"),
+        ]}
+      />,
+    );
+
+    const feed = screen.getByLabelText("Legenda traduzida");
+    const liveRegion = screen.getByRole("status", {
+      name: "Nova legenda traduzida",
+    });
+    expect(feed.getAttribute("aria-live")).toBeNull();
+    expect(liveRegion.getAttribute("aria-live")).toBe("polite");
+    expect(liveRegion.textContent).toBe("Mais recente");
   });
 });

@@ -123,10 +123,12 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
       if (error.event !== "join_room") return;
 
       settle(() => {
+        const code = error.code ?? "ROOM_ACCESS_FAILED";
+
         reject(
           new RoomAccessError({
-            code: error.code,
-            message: JOIN_ROOM_ERROR_MESSAGES[error.code] ?? error.message,
+            code,
+            message: JOIN_ROOM_ERROR_MESSAGES[code] ?? error.message,
           }),
         );
       });

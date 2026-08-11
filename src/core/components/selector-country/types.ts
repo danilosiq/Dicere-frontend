@@ -13,6 +13,7 @@ export type SelectorCountryProps = {
   value?: DeepLTargetLanguage;
   defaultValue?: DeepLTargetLanguage;
   placeholder?: string;
+  hideLabelText?: boolean;
   disabled?: boolean;
   className?: string;
   onSelect: (language: DeepLTargetLanguage) => void;

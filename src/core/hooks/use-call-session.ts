@@ -48,6 +48,7 @@ export function useCallSession() {
   );
   const [hasRemoteParticipantLeft, setHasRemoteParticipantLeft] =
     useState(false);
+  const [termination, setTermination] = useState<CallTermination | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const isInitializingRef = useRef(false);
 
@@ -62,6 +63,7 @@ export function useCallSession() {
     (termination: CallTermination) => {
       if (termination.type !== "participant-left") {
         cleanupCall();
+        setTermination(termination);
         return;
       }
 
@@ -106,6 +108,7 @@ export function useCallSession() {
 
     isInitializingRef.current = true;
     setHasRemoteParticipantLeft(false);
+    setTermination(null);
 
     try {
       const stream = await startLocalMedia();
@@ -200,6 +203,7 @@ export function useCallSession() {
     isError: errorMessage !== null,
     errorMessage,
     isLeaving,
+    termination,
     leaveCall,
     retryCall,
     ...mediaControls,

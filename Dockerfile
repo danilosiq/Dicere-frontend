@@ -12,8 +12,17 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 
+RUN if [ -z "$NEXT_PUBLIC_API_URL" ] || [ -z "$NEXT_PUBLIC_SOCKET_URL" ]; then \
+      echo "NEXT_PUBLIC_API_URL and NEXT_PUBLIC_SOCKET_URL are required at build time" >&2; \
+      exit 1; \
+    fi
 RUN npm run build
 
 FROM node:22.13.0-alpine AS runner

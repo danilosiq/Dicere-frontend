@@ -6,6 +6,8 @@ import SpeechRecognition, {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
+  SpeechRecognitionDiagnosticCode,
+  SpeechRecognitionMode,
   SpeechSegmentStatus,
   TranslateSpeechPayload,
   VoiceTranslationReceivedPayload,
@@ -17,6 +19,11 @@ import {
   splitSpeechText,
   subscribeToSpeechTranslations,
 } from "@/core/services/speech-translation-service";
+import {
+  activateOnDeviceSpeechRecognition,
+  reportSpeechRecognitionDiagnostic,
+  restoreRemoteSpeechRecognition,
+} from "@/core/services/speech-recognition-service";
 import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 
 export const SPEECH_END_GRACE_MS = 150;
@@ -271,6 +278,21 @@ function classifyNativeError(
   }
 }
 
+function toDiagnosticCode(error: string): SpeechRecognitionDiagnosticCode {
+  switch (error) {
+    case "aborted":
+    case "audio-capture":
+    case "language-not-supported":
+    case "network":
+    case "no-speech":
+    case "not-allowed":
+    case "service-not-allowed":
+      return error;
+    default:
+      return "unknown";
+  }
+}
+
 function stopListeningSafely() {
   void SpeechRecognition.stopListening().catch(() => undefined);
 }
@@ -305,6 +327,13 @@ export function useSpeechTranslation({
   const startRecognitionRef = useRef<(source?: "automatic" | "manual") => void>(
     () => undefined,
   );
+  const attemptOnDeviceFallbackRef = useRef<() => void>(() => undefined);
+  const recognitionModeRef = useRef<SpeechRecognitionMode>("remote");
+  const lastNativeErrorRef = useRef<SpeechRecognitionDiagnosticCode | null>(
+    null,
+  );
+  const onDeviceFallbackInFlightRef = useRef(false);
+  const unsupportedBrowserReportedRef = useRef(false);
 
   const sessionFinalTranscriptRef = useRef("");
   const lastObservedFinalRef = useRef("");
@@ -615,16 +644,24 @@ export function useSpeechTranslation({
       void SpeechRecognition.startListening({
         continuous: false,
         language: localeRef.current,
-      }).catch(() => {
+      }).catch((cause: unknown) => {
         startInFlightRef.current = false;
         if (!desiredEnabledRef.current) {
           transition({ type: "disable" });
           return;
         }
         endDispositionRef.current = "retry";
-        transition({
+        const next = transition({
           type: "transient-error",
           message: "Não foi possível iniciar o reconhecimento de voz.",
+        });
+        void reportSpeechRecognitionDiagnostic({
+          code: "start-failed",
+          ...(cause instanceof Error ? { errorName: cause.name } : {}),
+          locale: localeRef.current,
+          mode: recognitionModeRef.current,
+          retryAttempt: next.retryAttempt,
+          stage: "start",
         });
         scheduleRecognitionRetryRef.current();
       });
@@ -663,6 +700,7 @@ export function useSpeechTranslation({
       const handleResult = () => {
         clearRecognitionTimers();
         endDispositionRef.current = "normal";
+        lastNativeErrorRef.current = null;
         transition({ type: "healthy" });
       };
       const handleSpeechEnd = () => {
@@ -699,19 +737,48 @@ export function useSpeechTranslation({
 
         clearRecognitionTimers();
         clearSegmentTimers();
+        lastNativeErrorRef.current = toDiagnosticCode(event.error);
         if (classified.kind === "transient") {
           endDispositionRef.current = "retry";
-          transition({
+          const next = transition({
             type: "transient-error",
             message: classified.message,
           });
+          void reportSpeechRecognitionDiagnostic({
+            code: toDiagnosticCode(event.error),
+            locale: localeRef.current,
+            mode: recognitionModeRef.current,
+            retryAttempt: next.retryAttempt,
+            stage: "runtime",
+          });
+          if (
+            event.error === "network" &&
+            recognitionModeRef.current === "remote" &&
+            next.retryAttempt >= 2
+          ) {
+            attemptOnDeviceFallbackRef.current();
+          }
         } else {
           endDispositionRef.current = "blocked";
-          transition({
+          const next = transition({
             type: "block",
             message: classified.message,
             retryable: classified.retryable,
           });
+          void reportSpeechRecognitionDiagnostic({
+            code: toDiagnosticCode(event.error),
+            locale: localeRef.current,
+            mode: recognitionModeRef.current,
+            retryAttempt: next.retryAttempt,
+            stage: "runtime",
+          });
+          if (
+            recognitionModeRef.current === "remote" &&
+            (event.error === "service-not-allowed" ||
+              event.error === "language-not-supported")
+          ) {
+            attemptOnDeviceFallbackRef.current();
+          }
         }
 
         if (listeningRef.current) stopListeningSafely();
@@ -781,6 +848,89 @@ export function useSpeechTranslation({
     return () => detachNativeListenersRef.current();
   }, [attachNativeListeners]);
 
+  const attemptOnDeviceFallback = useCallback(() => {
+    if (
+      onDeviceFallbackInFlightRef.current ||
+      recognitionModeRef.current === "on-device"
+    ) {
+      return;
+    }
+
+    onDeviceFallbackInFlightRef.current = true;
+    const locale = localeRef.current;
+
+    void activateOnDeviceSpeechRecognition(locale)
+      .then((result) => {
+        if (!enabled || !roomId) return;
+
+        if (result.status === "activated") {
+          recognitionModeRef.current = "on-device";
+          attachNativeListeners(SpeechRecognition.getRecognition());
+          desiredEnabledRef.current = enabled && Boolean(roomId);
+          void reportSpeechRecognitionDiagnostic({
+            code: "local-fallback-activated",
+            locale,
+            mode: "on-device",
+            retryAttempt: machineRef.current.retryAttempt,
+            stage: "fallback",
+          });
+          if (
+            machineRef.current.status === "retry_wait" ||
+            machineRef.current.status === "blocked"
+          ) {
+            startRecognitionRef.current("automatic");
+          }
+          return;
+        }
+
+        void reportSpeechRecognitionDiagnostic({
+          code:
+            result.status === "failed"
+              ? "local-fallback-failed"
+              : "local-fallback-unavailable",
+          ...(result.errorName ? { errorName: result.errorName } : {}),
+          locale,
+          mode: "remote",
+          retryAttempt: machineRef.current.retryAttempt,
+          stage: "fallback",
+        });
+      })
+      .finally(() => {
+        onDeviceFallbackInFlightRef.current = false;
+      });
+  }, [attachNativeListeners, enabled, roomId]);
+
+  useEffect(() => {
+    attemptOnDeviceFallbackRef.current = attemptOnDeviceFallback;
+  }, [attemptOnDeviceFallback]);
+
+  useEffect(() => {
+    const retryWhenEnvironmentRecovers = () => {
+      if (
+        !desiredEnabledRef.current ||
+        machineRef.current.status !== "retry_wait" ||
+        startInFlightRef.current
+      ) {
+        return;
+      }
+
+      startRecognitionRef.current("automatic");
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        retryWhenEnvironmentRecovers();
+      }
+    };
+
+    window.addEventListener("online", retryWhenEnvironmentRecovers);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("online", retryWhenEnvironmentRecovers);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (previousRoomIdRef.current !== roomId) {
       previousRoomIdRef.current = roomId;
@@ -806,6 +956,7 @@ export function useSpeechTranslation({
       inFlightDeliveriesRef.current.clear();
       blockedDeliveriesRef.current.clear();
       resetSessionCursor();
+      lastNativeErrorRef.current = null;
       endDispositionRef.current = "disabled";
       transition({ type: "disable" });
       if (listeningRef.current) stopListeningSafely();
@@ -828,9 +979,20 @@ export function useSpeechTranslation({
           "Este navegador não oferece reconhecimento de voz para as legendas.",
         retryable: false,
       });
+      if (!unsupportedBrowserReportedRef.current) {
+        unsupportedBrowserReportedRef.current = true;
+        void reportSpeechRecognitionDiagnostic({
+          code: "unsupported-browser",
+          locale: localeRef.current,
+          mode: recognitionModeRef.current,
+          retryAttempt: 0,
+          stage: "support",
+        });
+      }
       if (listeningRef.current) stopListeningSafely();
       return;
     }
+    unsupportedBrowserReportedRef.current = false;
 
     const nextLocale = toSpeechRecognitionLocale(language);
     const localeChanged = previousLocaleRef.current !== nextLocale;
@@ -838,6 +1000,14 @@ export function useSpeechTranslation({
 
     if (localeChanged) {
       previousFinalContextRef.current = "";
+
+      if (
+        recognitionModeRef.current === "on-device" &&
+        restoreRemoteSpeechRecognition()
+      ) {
+        recognitionModeRef.current = "remote";
+        attachNativeListeners(SpeechRecognition.getRecognition());
+      }
 
       if (listeningRef.current) {
         endDispositionRef.current = "normal";
@@ -856,6 +1026,7 @@ export function useSpeechTranslation({
     language,
     roomId,
     resetSessionCursor,
+    attachNativeListeners,
     transition,
   ]);
 
@@ -992,11 +1163,29 @@ export function useSpeechTranslation({
   }, [translations]);
 
   const retryRecognition = useCallback(() => {
+    const canTryBlockedFallback = machineRef.current.status === "blocked";
     if (
-      !desiredEnabledRef.current ||
-      machineRef.current.issue?.retryable === false ||
+      (!desiredEnabledRef.current && !canTryBlockedFallback) ||
       startInFlightRef.current
     ) {
+      return;
+    }
+
+    const shouldRetryOnDevice =
+      recognitionModeRef.current === "remote" &&
+      (machineRef.current.retryAttempt >= 2 ||
+        lastNativeErrorRef.current === "service-not-allowed" ||
+        lastNativeErrorRef.current === "language-not-supported");
+
+    if (shouldRetryOnDevice) {
+      attemptOnDeviceFallbackRef.current();
+      return;
+    }
+
+    if (machineRef.current.issue?.retryable === false) {
+      if (machineRef.current.status === "blocked") {
+        attemptOnDeviceFallbackRef.current();
+      }
       return;
     }
 
@@ -1025,6 +1214,10 @@ export function useSpeechTranslation({
       blockedDeliveriesRef.current.clear();
       startInFlightRef.current = false;
       detachNativeListenersRef.current();
+      if (recognitionModeRef.current === "on-device") {
+        restoreRemoteSpeechRecognition();
+        recognitionModeRef.current = "remote";
+      }
       endDispositionRef.current = "disabled";
       if (listeningRef.current) stopListeningSafely();
     },

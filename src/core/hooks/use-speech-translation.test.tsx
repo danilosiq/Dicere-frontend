@@ -19,6 +19,15 @@ const mocks = vi.hoisted(() => ({
   sendSpeech: vi.fn(),
   splitSpeech: vi.fn((text: string) => [text.trim()]),
   recordMetric: vi.fn(),
+  reportDiagnostic: vi.fn(() => Promise.resolve()),
+  activateOnDevice: vi.fn(
+    (): Promise<{
+      status:
+        "activated" | "downloading" | "failed" | "unavailable" | "unsupported";
+      errorName?: string;
+    }> => Promise.resolve({ status: "unsupported" }),
+  ),
+  restoreRemote: vi.fn(() => true),
   onTranslation: null as null | ((payload: unknown) => void),
   onSocketError: null as null | ((message: string) => void),
   unsubscribe: vi.fn(),
@@ -49,6 +58,12 @@ vi.mock("@/core/services/speech-translation-service", () => ({
     mocks.onSocketError = onError;
     return mocks.unsubscribe;
   },
+}));
+
+vi.mock("@/core/services/speech-recognition-service", () => ({
+  activateOnDeviceSpeechRecognition: mocks.activateOnDevice,
+  reportSpeechRecognitionDiagnostic: mocks.reportDiagnostic,
+  restoreRemoteSpeechRecognition: mocks.restoreRemote,
 }));
 
 import {
@@ -134,6 +149,11 @@ describe("useSpeechTranslation", () => {
     mocks.splitSpeech.mockClear();
     mocks.splitSpeech.mockImplementation((text: string) => [text.trim()]);
     mocks.recordMetric.mockClear();
+    mocks.reportDiagnostic.mockClear();
+    mocks.activateOnDevice.mockClear();
+    mocks.activateOnDevice.mockResolvedValue({ status: "unsupported" });
+    mocks.restoreRemote.mockClear();
+    mocks.restoreRemote.mockReturnValue(true);
     mocks.onTranslation = null;
     mocks.onSocketError = null;
     mocks.unsubscribe.mockReset();
@@ -279,6 +299,90 @@ describe("useSpeechTranslation", () => {
     expect(result.current.captionIssue).toBeNull();
   });
 
+  it("registra o erro nativo com locale, tentativa e modo do reconhecedor", () => {
+    renderSpeechHook();
+
+    emitNative("error", { error: "network" });
+
+    expect(mocks.reportDiagnostic).toHaveBeenCalledWith({
+      code: "network",
+      locale: "pt-BR",
+      mode: "remote",
+      retryAttempt: 1,
+      stage: "runtime",
+    });
+  });
+
+  it("tenta ativar o fallback local após a segunda falha de rede", async () => {
+    mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
+    renderSpeechHook();
+
+    emitNative("error", { error: "network" });
+    emitNative("end");
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
+    emitNative("start");
+    emitNative("error", { error: "network" });
+
+    await act(async () => Promise.resolve());
+
+    expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "local-fallback-activated",
+        mode: "on-device",
+        stage: "fallback",
+      }),
+    );
+  });
+
+  it.each(["service-not-allowed", "language-not-supported"])(
+    "tenta fallback local imediatamente após %s",
+    async (error) => {
+      mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
+      renderSpeechHook();
+
+      emitNative("error", { error });
+      await act(async () => Promise.resolve());
+
+      expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+      expect(mocks.startListening).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("retry manual tenta novamente o fallback local após falhas de rede repetidas", async () => {
+    mocks.activateOnDevice
+      .mockResolvedValueOnce({ status: "failed" })
+      .mockResolvedValueOnce({ status: "activated" });
+    const { result } = renderSpeechHook();
+
+    emitNative("error", { error: "network" });
+    emitNative("end");
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
+    emitNative("start");
+    emitNative("error", { error: "network" });
+    await act(async () => Promise.resolve());
+
+    act(() => result.current.retryRecognition());
+    await act(async () => Promise.resolve());
+
+    expect(mocks.activateOnDevice).toHaveBeenCalledTimes(2);
+    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "local-fallback-activated" }),
+    );
+  });
+
+  it("retoma imediatamente quando a conexão do navegador volta", () => {
+    renderSpeechHook();
+    emitNative("error", { error: "network" });
+    emitNative("end");
+
+    act(() => window.dispatchEvent(new Event("online")));
+
+    expect(mocks.startListening).toHaveBeenCalledTimes(2);
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
+    expect(mocks.startListening).toHaveBeenCalledTimes(2);
+  });
+
   it("aplica backoff de 1, 2, 4, 8, 16 e 30 segundos", () => {
     renderSpeechHook();
     let starts = 1;
@@ -361,6 +465,23 @@ describe("useSpeechTranslation", () => {
       continuous: false,
       language: "pt-BR",
     });
+  });
+
+  it("oferece fallback local manual quando o navegador não expõe reconhecimento remoto", async () => {
+    mocks.recognition.browserSupportsSpeechRecognition = false;
+    mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
+    const { result } = renderSpeechHook();
+
+    act(() => result.current.retryRecognition());
+    await act(async () => Promise.resolve());
+
+    expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "local-fallback-activated",
+        mode: "on-device",
+      }),
+    );
   });
 
   it("cancela retry e rearm ao desativar ou desmontar", () => {

@@ -50,6 +50,9 @@ jobs:
       - name: Executar lint
         run: npm run lint
 
+      - name: Gerar tipos do Next.js
+        run: npm exec next typegen
+
       - name: Verificar TypeScript
         run: npm run typecheck
 

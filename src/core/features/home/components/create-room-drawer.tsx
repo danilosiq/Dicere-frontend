@@ -3,7 +3,7 @@ import { Column } from "@/core/components/layout";
 import { CreateRoomForm } from "@/core/forms";
 import type { CreateRoomSchemaType } from "@/core/forms/create-room-form/schema";
 import { Typography } from "@/core/components/typography";
-import PlusImage from "@/images/plus-image.png";
+import PlusImage from "@/core/assets/images/plus-image.png";
 import Image from "next/image";
 
 interface CreateRoomDrawerProps {

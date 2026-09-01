@@ -1,7 +1,7 @@
 import Image, { type StaticImageData } from "next/image";
 
 import balloonImage from "@/core/assets/images/baloon.png";
-import baseImage from "@/core/assets/images/dicere photo 1.png";
+import baseImage from "@/core/assets/images/dicere-photo-1.png";
 import lampImage from "@/core/assets/images/lamp.png";
 import sparklesImage from "@/core/assets/images/sparkles.png";
 import { cn } from "@/core/utils/cn";

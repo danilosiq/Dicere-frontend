@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const socketMock = vi.hoisted(() => {
   type Handler = (payload: never) => void;
@@ -93,7 +93,11 @@ describe("speech-translation-service", () => {
   beforeEach(() => {
     socketMock.reset();
     clearSpeechTranslationMetrics();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("preserva metadados e confirma a entrega versionada", () => {
     const onAcknowledged = vi.fn();
@@ -191,6 +195,15 @@ describe("speech-translation-service", () => {
       expect.objectContaining({ kind: "timeout", retryable: true }),
     );
     expect(getSpeechTranslationMetrics().at(-1)?.name).toBe("ack_timeout");
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Dicere][SpeechTranslation]",
+      expect.objectContaining({
+        attempt: 3,
+        code: "ACK_TIMEOUT",
+        segmentId: "segment-1",
+        traceId: "trace-1",
+      }),
+    );
   });
 
   it("propaga erro definitivo retornado pelo servidor", () => {
@@ -215,6 +228,13 @@ describe("speech-translation-service", () => {
         retryable: false,
       },
     );
+    expect(console.error).toHaveBeenCalledWith(
+      "[Dicere][SpeechTranslation]",
+      expect.objectContaining({
+        code: "INVALID_PAYLOAD",
+        segmentId: "segment-1",
+      }),
+    );
   });
 
   it("mantém o texto no cliente quando o socket está desconectado", () => {
@@ -224,6 +244,10 @@ describe("speech-translation-service", () => {
       sendSpeechForTranslation({ roomId: "room-1", text: "Olá" }),
     ).toThrow(SpeechTranslationConnectionError);
     expect(socketMock.emitted).toHaveLength(0);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Dicere][SpeechTranslation]",
+      expect.objectContaining({ code: "SOCKET_DISCONNECTED" }),
+    );
   });
 
   it("recebe contratos legados e versionados e remove os listeners", () => {

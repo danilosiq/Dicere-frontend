@@ -149,6 +149,52 @@ export type VoiceTranslationReceivedPayload = {
   timings?: SpeechTranslationTimings;
 } & Partial<SpeechTranslationMetadata>;
 
+export type SpeechRecognitionMode = "remote" | "on-device";
+
+export type SpeechRecognitionDiagnosticCode =
+  | "aborted"
+  | "audio-capture"
+  | "language-not-supported"
+  | "local-fallback-activated"
+  | "local-fallback-failed"
+  | "local-fallback-unavailable"
+  | "network"
+  | "no-speech"
+  | "not-allowed"
+  | "service-not-allowed"
+  | "start-failed"
+  | "unsupported-browser"
+  | "unknown";
+
+export type SpeechRecognitionDiagnosticPayload = {
+  code: SpeechRecognitionDiagnosticCode;
+  errorName?: string;
+  locale: string;
+  microphonePermission: PermissionState | "unknown";
+  mode: SpeechRecognitionMode;
+  occurredAt: string;
+  online: boolean;
+  reason:
+    | "AUDIO_CAPTURE_UNAVAILABLE"
+    | "BROWSER_UNSUPPORTED"
+    | "INSECURE_CONTEXT"
+    | "LANGUAGE_NOT_SUPPORTED"
+    | "MICROPHONE_PERMISSION_DENIED"
+    | "OFFLINE"
+    | "ON_DEVICE_FALLBACK_ACTIVATED"
+    | "ON_DEVICE_FALLBACK_FAILED"
+    | "ON_DEVICE_FALLBACK_UNAVAILABLE"
+    | "RECOGNITION_SERVICE_BLOCKED"
+    | "RECOGNITION_START_FAILED"
+    | "REMOTE_SERVICE_NETWORK_FAILURE"
+    | "UNKNOWN_RECOGNITION_FAILURE";
+  retryAttempt: number;
+  secureContext: boolean;
+  stage: "fallback" | "runtime" | "start" | "support";
+  userAgent: string;
+  visibilityState: DocumentVisibilityState | "unknown";
+};
+
 export type ServerToClientEvents = {
   room_joined: (payload: RoomJoinedPayload) => void;
   participant_joined: (payload: RoomParticipant) => void;
@@ -186,5 +232,8 @@ export type ClientToServerEvents = {
   translate_speech: (
     payload: TranslateSpeechPayload,
     acknowledgement: (payload: TranslateSpeechAcknowledgement) => void,
+  ) => void;
+  speech_recognition_diagnostic: (
+    payload: SpeechRecognitionDiagnosticPayload,
   ) => void;
 };

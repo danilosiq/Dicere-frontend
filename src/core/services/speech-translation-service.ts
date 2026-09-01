@@ -38,6 +38,24 @@ function getMonotonicNow() {
   return globalThis.performance?.now() ?? Date.now();
 }
 
+function logSpeechTranslationFailure(
+  level: "error" | "warn",
+  payload: TranslateSpeechPayload,
+  details: {
+    attempt?: number;
+    code: string;
+    retryable: boolean;
+  },
+) {
+  console[level]("[Dicere][SpeechTranslation]", {
+    ...details,
+    occurredAt: new Date().toISOString(),
+    ...(payload.segmentId ? { segmentId: payload.segmentId } : {}),
+    ...(payload.revision !== undefined ? { revision: payload.revision } : {}),
+    ...(payload.traceId ? { traceId: payload.traceId } : {}),
+  });
+}
+
 export function recordSpeechTranslationMetric(
   metric: SpeechTranslationLocalMetric,
 ) {
@@ -196,6 +214,11 @@ function emitSpeechChunk(
           durationMs: timedOutAt - emittedAt,
           result: "timeout",
         });
+        logSpeechTranslationFailure("warn", payload, {
+          attempt: attempt + 1,
+          code: "ACK_TIMEOUT",
+          retryable: true,
+        });
         options.onTerminalError?.(payload, {
           kind: "timeout",
           message:
@@ -217,6 +240,10 @@ function emitSpeechChunk(
       });
 
       if (acknowledgement?.result === "error") {
+        logSpeechTranslationFailure("error", payload, {
+          code: acknowledgement.error?.code ?? "SERVER_REJECTED",
+          retryable: false,
+        });
         options.onTerminalError?.(payload, {
           kind: "server",
           message:
@@ -240,6 +267,10 @@ export function sendSpeechForTranslation(
   const socket = getSocket();
 
   if (!socket.connected) {
+    logSpeechTranslationFailure("warn", payload, {
+      code: "SOCKET_DISCONNECTED",
+      retryable: true,
+    });
     throw new SpeechTranslationConnectionError();
   }
 

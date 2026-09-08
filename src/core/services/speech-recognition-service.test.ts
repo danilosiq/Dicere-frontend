@@ -156,4 +156,31 @@ describe("speech-recognition-service", () => {
     expect(restoreRemoteSpeechRecognition()).toBe(true);
     expect(mocks.applyPolyfill).toHaveBeenCalledWith(NativeRecognition);
   });
+
+  it("não troca o reconhecedor se a sessão terminar durante o download", async () => {
+    const controller = new AbortController();
+    let finishDownload!: (installed: boolean) => void;
+    class NativeRecognition {
+      static available = vi.fn().mockResolvedValue("downloadable");
+      static install = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishDownload = resolve;
+          }),
+      );
+    }
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: NativeRecognition,
+    });
+    const activation = activateOnDeviceSpeechRecognition(
+      "pt-BR",
+      controller.signal,
+    );
+    await Promise.resolve();
+    controller.abort();
+    finishDownload(true);
+    await expect(activation).resolves.toEqual({ status: "cancelled" });
+    expect(mocks.applyPolyfill).not.toHaveBeenCalled();
+  });
 });

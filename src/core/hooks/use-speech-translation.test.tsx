@@ -325,7 +325,10 @@ describe("useSpeechTranslation", () => {
 
     await act(async () => Promise.resolve());
 
-    expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+    expect(mocks.activateOnDevice).toHaveBeenCalledWith(
+      "pt-BR",
+      expect.any(AbortSignal),
+    );
     expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
       expect.objectContaining({
         code: "local-fallback-activated",
@@ -344,7 +347,10 @@ describe("useSpeechTranslation", () => {
       emitNative("error", { error });
       await act(async () => Promise.resolve());
 
-      expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+      expect(mocks.activateOnDevice).toHaveBeenCalledWith(
+        "pt-BR",
+        expect.any(AbortSignal),
+      );
       expect(mocks.startListening).toHaveBeenCalledTimes(2);
     },
   );
@@ -381,6 +387,95 @@ describe("useSpeechTranslation", () => {
     expect(mocks.startListening).toHaveBeenCalledTimes(2);
     act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
     expect(mocks.startListening).toHaveBeenCalledTimes(2);
+  });
+
+  it("retry manual retoma o remoto quando o fallback não está disponível", async () => {
+    const { result } = renderSpeechHook();
+    emitNative("error", { error: "network" });
+    emitNative("end");
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
+    emitNative("start");
+    emitNative("error", { error: "network" });
+    await act(async () => Promise.resolve());
+    const startsBeforeRetry = mocks.startListening.mock.calls.length;
+    act(() => result.current.retryRecognition());
+    await act(async () => Promise.resolve());
+    expect(mocks.startListening).toHaveBeenCalledTimes(startsBeforeRetry + 1);
+  });
+
+  it("ignora ativação tardia depois de desativar a legenda", async () => {
+    let finishActivation!: (result: { status: "activated" }) => void;
+    mocks.activateOnDevice.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishActivation = resolve;
+        }),
+    );
+    const { rerender } = renderSpeechHook();
+    emitNative("error", { error: "service-not-allowed" });
+    rerender({ enabled: false });
+    await act(async () => finishActivation({ status: "activated" }));
+    expect(mocks.startListening).toHaveBeenCalledTimes(1);
+    expect(mocks.reportDiagnostic).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: "local-fallback-activated" }),
+    );
+  });
+
+  it.each(["unmount", "room", "language", "recovered"])(
+    "descarta fallback pendente após %s",
+    async (change) => {
+      let finishActivation!: (result: { status: "activated" }) => void;
+      mocks.activateOnDevice.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishActivation = resolve;
+          }),
+      );
+      const view = renderHook(
+        (props: { roomId: string; language: "PT-BR" | "EN-US" }) =>
+          useSpeechTranslation({ ...props, enabled: true }),
+        {
+          initialProps: {
+            roomId: "room-1",
+            language: "PT-BR" as "PT-BR" | "EN-US",
+          },
+        },
+      );
+      emitNative("error", { error: "service-not-allowed" });
+      if (change === "unmount") view.unmount();
+      if (change === "room")
+        view.rerender({ roomId: "room-2", language: "PT-BR" });
+      if (change === "language")
+        view.rerender({ roomId: "room-1", language: "EN-US" });
+      if (change === "recovered") emitNative("result");
+      const starts = mocks.startListening.mock.calls.length;
+      await act(async () => finishActivation({ status: "activated" }));
+      expect(mocks.startListening).toHaveBeenCalledTimes(starts);
+      expect(mocks.reportDiagnostic).not.toHaveBeenCalledWith(
+        expect.objectContaining({ code: "local-fallback-activated" }),
+      );
+    },
+  );
+
+  it("inicia o modo local mesmo quando um retry remoto está em andamento", async () => {
+    let finishActivation!: (result: { status: "activated" }) => void;
+    mocks.activateOnDevice.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishActivation = resolve;
+        }),
+    );
+    renderSpeechHook();
+    emitNative("error", { error: "network" });
+    emitNative("end");
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
+    emitNative("start");
+    emitNative("error", { error: "network" });
+    emitNative("end");
+    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[1]));
+    const starts = mocks.startListening.mock.calls.length;
+    await act(async () => finishActivation({ status: "activated" }));
+    expect(mocks.startListening).toHaveBeenCalledTimes(starts + 1);
   });
 
   it("aplica backoff de 1, 2, 4, 8, 16 e 30 segundos", () => {
@@ -475,7 +570,10 @@ describe("useSpeechTranslation", () => {
     act(() => result.current.retryRecognition());
     await act(async () => Promise.resolve());
 
-    expect(mocks.activateOnDevice).toHaveBeenCalledWith("pt-BR");
+    expect(mocks.activateOnDevice).toHaveBeenCalledWith(
+      "pt-BR",
+      expect.any(AbortSignal),
+    );
     expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
       expect.objectContaining({
         code: "local-fallback-activated",

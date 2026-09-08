@@ -327,12 +327,14 @@ export function useSpeechTranslation({
   const startRecognitionRef = useRef<(source?: "automatic" | "manual") => void>(
     () => undefined,
   );
-  const attemptOnDeviceFallbackRef = useRef<() => void>(() => undefined);
+  const attemptOnDeviceFallbackRef = useRef<
+    (source?: "automatic" | "manual") => void
+  >(() => undefined);
   const recognitionModeRef = useRef<SpeechRecognitionMode>("remote");
   const lastNativeErrorRef = useRef<SpeechRecognitionDiagnosticCode | null>(
     null,
   );
-  const onDeviceFallbackInFlightRef = useRef(false);
+  const onDeviceFallbackControllerRef = useRef<AbortController | null>(null);
   const unsupportedBrowserReportedRef = useRef(false);
 
   const sessionFinalTranscriptRef = useRef("");
@@ -366,6 +368,14 @@ export function useSpeechTranslation({
   const retryPendingDeliveryRef = useRef<() => void>(() => undefined);
   const requestFinalizationRef = useRef<() => void>(() => undefined);
   const scheduleRecognitionRetryRef = useRef<() => void>(() => undefined);
+
+  useEffect(
+    () => () => {
+      onDeviceFallbackControllerRef.current?.abort();
+      onDeviceFallbackControllerRef.current = null;
+    },
+    [enabled, roomId, language],
+  );
 
   useEffect(() => {
     desiredEnabledRef.current =
@@ -698,6 +708,8 @@ export function useSpeechTranslation({
         firstFinalMeasuredRef.current = false;
       };
       const handleResult = () => {
+        onDeviceFallbackControllerRef.current?.abort();
+        onDeviceFallbackControllerRef.current = null;
         clearRecognitionTimers();
         endDispositionRef.current = "normal";
         lastNativeErrorRef.current = null;
@@ -848,57 +860,69 @@ export function useSpeechTranslation({
     return () => detachNativeListenersRef.current();
   }, [attachNativeListeners]);
 
-  const attemptOnDeviceFallback = useCallback(() => {
-    if (
-      onDeviceFallbackInFlightRef.current ||
-      recognitionModeRef.current === "on-device"
-    ) {
-      return;
-    }
+  const attemptOnDeviceFallback = useCallback(
+    (source: "automatic" | "manual" = "automatic") => {
+      if (
+        !enabled ||
+        !roomId ||
+        onDeviceFallbackControllerRef.current ||
+        recognitionModeRef.current === "on-device"
+      ) {
+        return;
+      }
 
-    onDeviceFallbackInFlightRef.current = true;
-    const locale = localeRef.current;
+      const controller = new AbortController();
+      onDeviceFallbackControllerRef.current = controller;
+      const locale = localeRef.current;
 
-    void activateOnDeviceSpeechRecognition(locale)
-      .then((result) => {
-        if (!enabled || !roomId) return;
+      void activateOnDeviceSpeechRecognition(locale, controller.signal)
+        .then((result) => {
+          if (controller.signal.aborted || result.status === "cancelled")
+            return;
 
-        if (result.status === "activated") {
-          recognitionModeRef.current = "on-device";
-          attachNativeListeners(SpeechRecognition.getRecognition());
-          desiredEnabledRef.current = enabled && Boolean(roomId);
+          if (result.status === "activated") {
+            recognitionModeRef.current = "on-device";
+            startInFlightRef.current = false;
+            attachNativeListeners(SpeechRecognition.getRecognition());
+            desiredEnabledRef.current = enabled && Boolean(roomId);
+            void reportSpeechRecognitionDiagnostic({
+              code: "local-fallback-activated",
+              locale,
+              mode: "on-device",
+              retryAttempt: machineRef.current.retryAttempt,
+              stage: "fallback",
+            });
+            startRecognitionRef.current("automatic");
+            return;
+          }
+
           void reportSpeechRecognitionDiagnostic({
-            code: "local-fallback-activated",
+            code:
+              result.status === "failed"
+                ? "local-fallback-failed"
+                : "local-fallback-unavailable",
+            ...(result.errorName ? { errorName: result.errorName } : {}),
             locale,
-            mode: "on-device",
+            mode: "remote",
             retryAttempt: machineRef.current.retryAttempt,
             stage: "fallback",
           });
           if (
-            machineRef.current.status === "retry_wait" ||
-            machineRef.current.status === "blocked"
+            source === "manual" &&
+            desiredEnabledRef.current &&
+            machineRef.current.issue?.retryable !== false
           ) {
-            startRecognitionRef.current("automatic");
+            startRecognitionRef.current("manual");
           }
-          return;
-        }
-
-        void reportSpeechRecognitionDiagnostic({
-          code:
-            result.status === "failed"
-              ? "local-fallback-failed"
-              : "local-fallback-unavailable",
-          ...(result.errorName ? { errorName: result.errorName } : {}),
-          locale,
-          mode: "remote",
-          retryAttempt: machineRef.current.retryAttempt,
-          stage: "fallback",
+        })
+        .finally(() => {
+          if (onDeviceFallbackControllerRef.current === controller) {
+            onDeviceFallbackControllerRef.current = null;
+          }
         });
-      })
-      .finally(() => {
-        onDeviceFallbackInFlightRef.current = false;
-      });
-  }, [attachNativeListeners, enabled, roomId]);
+    },
+    [attachNativeListeners, enabled, roomId],
+  );
 
   useEffect(() => {
     attemptOnDeviceFallbackRef.current = attemptOnDeviceFallback;
@@ -1178,13 +1202,13 @@ export function useSpeechTranslation({
         lastNativeErrorRef.current === "language-not-supported");
 
     if (shouldRetryOnDevice) {
-      attemptOnDeviceFallbackRef.current();
+      attemptOnDeviceFallbackRef.current("manual");
       return;
     }
 
     if (machineRef.current.issue?.retryable === false) {
       if (machineRef.current.status === "blocked") {
-        attemptOnDeviceFallbackRef.current();
+        attemptOnDeviceFallbackRef.current("manual");
       }
       return;
     }

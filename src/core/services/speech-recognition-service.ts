@@ -37,7 +37,12 @@ export type SpeechRecognitionDiagnosticInput = {
 
 export type OnDeviceActivationResult = {
   status:
-    "activated" | "downloading" | "failed" | "unavailable" | "unsupported";
+    | "activated"
+    | "cancelled"
+    | "downloading"
+    | "failed"
+    | "unavailable"
+    | "unsupported";
   errorName?: string;
 };
 
@@ -159,7 +164,9 @@ export async function reportSpeechRecognitionDiagnostic(
 
 export async function activateOnDeviceSpeechRecognition(
   locale: string,
+  signal?: AbortSignal,
 ): Promise<OnDeviceActivationResult> {
+  if (signal?.aborted) return { status: "cancelled" };
   const NativeSpeechRecognition = getNativeSpeechRecognition();
 
   if (!NativeSpeechRecognition?.available || !NativeSpeechRecognition.install) {
@@ -169,6 +176,7 @@ export async function activateOnDeviceSpeechRecognition(
   try {
     const options = { langs: [locale], processLocally: true };
     const availability = await NativeSpeechRecognition.available(options);
+    if (signal?.aborted) return { status: "cancelled" };
 
     if (availability === "unavailable") {
       return { status: "unavailable" };
@@ -180,6 +188,7 @@ export async function activateOnDeviceSpeechRecognition(
 
     if (availability === "downloadable") {
       const installed = await NativeSpeechRecognition.install(options);
+      if (signal?.aborted) return { status: "cancelled" };
       if (!installed) return { status: "failed" };
     }
 
@@ -193,6 +202,7 @@ export async function activateOnDeviceSpeechRecognition(
     SpeechRecognition.applyPolyfill(LocalSpeechRecognition);
     return { status: "activated" };
   } catch (cause) {
+    if (signal?.aborted) return { status: "cancelled" };
     return {
       status: "failed",
       ...(cause instanceof Error ? { errorName: cause.name } : {}),

@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RoomScreen } from "@/core/features/room";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
+  writeText: vi.fn(),
   callSession: {
     microphoneEnabled: true,
     cameraEnabled: true,
@@ -53,8 +54,19 @@ vi.mock("@/core/features/room/components/chat/chat-section", () => ({
 }));
 
 describe("RoomScreen call tools", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     mocks.replace.mockReset();
+    mocks.writeText.mockReset();
     mocks.callSession.leaveCall.mockReset();
     mocks.callSession.toggleMicrophone.mockReset();
     mocks.callSession.toggleCamera.mockReset();
@@ -87,6 +99,77 @@ describe("RoomScreen call tools", () => {
       isJoined: true,
       isHydrated: true,
     });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: mocks.writeText },
+    });
+  });
+
+  it("copies the room link including its code and shows the confirmation tooltip", async () => {
+    mocks.writeText.mockResolvedValue(undefined);
+    render(<RoomScreen />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Compartilhar" }));
+
+    await vi.waitFor(() => {
+      expect(mocks.writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/room/ABC-234-K9X`,
+      );
+    });
+    expect((await screen.findByRole("tooltip")).textContent).toBe("Copiado!");
+    expect(screen.getByRole("button", { name: "Compartilhar" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "ABC-234-K9X" })).toBeNull();
+    await vi.waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull(), {
+      timeout: 3_000,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Compartilhar" }));
+    expect((await screen.findByRole("tooltip")).textContent).toBe("Copiado!");
+    expect(mocks.writeText).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows an error state when the room link cannot be copied", async () => {
+    mocks.writeText.mockRejectedValue(new Error("Clipboard unavailable"));
+    render(<RoomScreen />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Compartilhar" }));
+
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Não foi possível copiar",
+    );
+    expect(screen.queryByText("Copiado!")).toBeNull();
+  });
+
+  it("does not show success when the clipboard API is unavailable", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    render(<RoomScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Compartilhar" }));
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Não foi possível copiar",
+    );
+    expect(mocks.writeText).not.toHaveBeenCalled();
+  });
+
+  it("waits for the clipboard before confirming and prevents duplicate clicks", async () => {
+    let complete!: () => void;
+    mocks.writeText.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(<RoomScreen />);
+    const button = screen.getByRole("button", { name: "Compartilhar" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mocks.writeText).toHaveBeenCalledOnce();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    complete();
+    expect((await screen.findByRole("tooltip")).textContent).toBe("Copiado!");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("connects microphone and camera buttons to the active call session", () => {

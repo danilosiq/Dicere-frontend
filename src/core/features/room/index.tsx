@@ -4,15 +4,20 @@ import { Column, Row } from "@/core/components/layout";
 import { useCallSession } from "@/core/hooks/use-call-session";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ChatSection } from "./components/chat/chat-section";
-import { CallTools } from "./components/video/call-tools";
+import {
+  CallTools,
+  type CopyInviteStatus,
+} from "./components/video/call-tools";
 import { VideoSection } from "./components/video/video-section";
 
 export function RoomScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const call = useCallSession();
+  const [copyInviteStatus, setCopyInviteStatus] =
+    useState<CopyInviteStatus>("idle");
   const clearRoomSession = useRoomSessionStore((state) => state.clearSession);
 
   useEffect(() => {
@@ -28,10 +33,45 @@ export function RoomScreen() {
     router.replace("/");
   }, [call.termination, clearRoomSession, router]);
 
+  useEffect(() => {
+    if (copyInviteStatus === "idle" || copyInviteStatus === "copying") return;
+
+    const resetCopyStatus = window.setTimeout(
+      () => setCopyInviteStatus("idle"),
+      2_000,
+    );
+
+    return () => window.clearTimeout(resetCopyStatus);
+  }, [copyInviteStatus]);
+
   function handleLeaveCall() {
     call.leaveCall();
     clearRoomSession();
     router.replace("/");
+  }
+
+  async function handleCopyInviteLink() {
+    if (copyInviteStatus === "copying") return;
+
+    setCopyInviteStatus("copying");
+
+    try {
+      const roomCode = id.trim();
+
+      if (!roomCode || !navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+
+      const inviteLink = new URL(
+        `/room/${encodeURIComponent(roomCode)}`,
+        window.location.origin,
+      ).toString();
+
+      await navigator.clipboard.writeText(inviteLink);
+      setCopyInviteStatus("success");
+    } catch {
+      setCopyInviteStatus("error");
+    }
   }
 
   return (
@@ -41,13 +81,14 @@ export function RoomScreen() {
         <ChatSection />
       </Row>
       <CallTools
-        callCode={id}
+        copyInviteStatus={copyInviteStatus}
         hasCamera={call.hasCamera}
         hasMicrophone={call.hasMicrophone}
         isLeaving={call.isLeaving}
         isMuted={!call.microphoneEnabled}
         isVideoEnabled={call.cameraEnabled}
         onLeave={handleLeaveCall}
+        onCopyInviteLink={handleCopyInviteLink}
         onMute={call.toggleMicrophone}
         onToggleVideo={call.toggleCamera}
       />

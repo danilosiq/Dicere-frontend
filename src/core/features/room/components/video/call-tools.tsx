@@ -1,13 +1,21 @@
 "use client";
 
 import { Button } from "@/core/components/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { IconButton } from "@/core/components/icon-button";
 import { Row } from "@/core/components/layout";
 import { Logo } from "@/core/components/logo";
 import { ThemeToggle } from "@/core/components/theme-toggle";
 import { cn } from "@/core/utils/cn";
 import {
+  Check,
   Copy,
+  LoaderCircle,
   Mic,
   MicOff,
   Phone,
@@ -17,13 +25,15 @@ import {
   VideoOff,
 } from "lucide-react";
 
+export type CopyInviteStatus = "idle" | "copying" | "success" | "error";
+
 export interface CallToolsProps {
   isMuted?: boolean;
   isVideoEnabled?: boolean;
   hasMicrophone?: boolean;
   hasCamera?: boolean;
   isLeaving?: boolean;
-  callCode: string;
+  copyInviteStatus?: CopyInviteStatus;
   onMute?: () => void;
   onToggleVideo?: () => void;
   onLeave?: () => void;
@@ -41,22 +51,37 @@ export function CallTools({
   hasMicrophone = true,
   hasCamera = true,
   isLeaving = false,
+  copyInviteStatus = "idle",
   onMute,
   onToggleVideo,
   onLeave,
-  callCode,
   onCopyInviteLink,
   onOpenParticipants,
   onOpenSettings,
 }: CallToolsProps) {
+  const copyLabel = {
+    idle: "Compartilhar",
+    copying: "Copiando...",
+    success: "Copiado!",
+    error: "Não foi possível copiar",
+  }[copyInviteStatus];
+  const copyIcon =
+    copyInviteStatus === "success" ? (
+      <Check />
+    ) : copyInviteStatus === "copying" ? (
+      <LoaderCircle className="animate-spin" />
+    ) : (
+      <Copy />
+    );
+
   return (
     <footer className="border-border bg-component border-t p-6 sm:px-6">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+      <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
         <div className="hidden justify-self-start sm:block">
           <Logo />
         </div>
 
-        <Row className="col-start-2 items-center justify-center gap-2">
+        <Row className="items-center justify-center gap-2 sm:col-start-2">
           <IconButton
             ariaLabel={isMuted ? "Ativar microfone" : "Desativar microfone"}
             className={cn(
@@ -95,16 +120,29 @@ export function CallTools({
           />
         </Row>
 
-        <Row className="min-w-0 items-center justify-end gap-1 justify-self-end sm:gap-2">
-          <Button label={callCode} endIcon={<Copy />} />
-
-          <IconButton
-            ariaLabel="Copiar link de convite"
-            className="sm:hidden"
-            icon={<Copy />}
-            onClick={onCopyInviteLink}
-            tooltip="Copiar link de convite"
-          />
+        <Row className="min-w-0 items-center justify-end gap-1 justify-self-center sm:gap-2 sm:justify-self-end">
+          <TooltipProvider>
+            <Tooltip
+              open={
+                copyInviteStatus === "success" || copyInviteStatus === "error"
+              }
+            >
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    label="Compartilhar"
+                    endIcon={copyIcon}
+                    disabled={copyInviteStatus === "copying"}
+                    onClick={onCopyInviteLink}
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{copyLabel}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span role="status" aria-live="polite" className="sr-only">
+            {copyInviteStatus !== "idle" ? copyLabel : ""}
+          </span>
 
           <ThemeToggle />
 

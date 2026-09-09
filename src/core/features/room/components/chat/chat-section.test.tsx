@@ -311,7 +311,9 @@ describe("ChatSection sending", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Enviar mensagem" }));
 
-    expect(await screen.findByText("Tentar novamente")).toBeTruthy();
+    expect(
+      await screen.findByText("Tentar novamente", { selector: "span" }),
+    ).toBeTruthy();
     expect((input as HTMLInputElement).value).toBe("");
     expect(mocks.sendChatMessage).toHaveBeenCalledTimes(2);
   });
@@ -365,7 +367,7 @@ describe("ChatSection sending", () => {
     });
 
     expect(screen.getByText("Maria")).toBeTruthy();
-    expect(screen.getByText("Mensagem recebida")).toBeTruthy();
+    expect(await screen.findByText("Mensagem recebida")).toBeTruthy();
   });
 
   it("loads older messages and preserves the visible scroll offset", async () => {
@@ -521,14 +523,14 @@ describe("ChatSection sending", () => {
       });
     });
 
-    expect(screen.getByText("Evento atrasado")).toBeTruthy();
+    expect(await screen.findByText("Evento atrasado")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Novas mensagens" }),
     ).toBeTruthy();
     expect(viewport.scrollTop).toBe(100);
   });
 
-  it("translates a message and toggles the cached original", async () => {
+  it("automatically translates a message and toggles the cached original", async () => {
     const originalMessage = {
       ...message,
       participantId: "participant-2",
@@ -546,13 +548,6 @@ describe("ChatSection sending", () => {
       targetLanguage: "PT-BR",
     });
     renderChatSection();
-
-    await screen.findByText("Hello");
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Traduzir mensagem de Maria",
-      })[0]!,
-    );
 
     expect(await screen.findByText("Olá")).toBeTruthy();
     fireEvent.click(
@@ -617,20 +612,27 @@ describe("ChatSection sending", () => {
       content: "Minha mensagem",
       createdAt: "2026-07-29T12:31:00.000Z",
     });
-    mocks.translateChatMessage.mockResolvedValue({
-      messageId: historyMessage.id,
-      originalContent: historyMessage.content,
-      translatedContent: "Olá",
-      targetLanguage: "PT-BR",
+    mocks.translateChatMessage.mockImplementation(async ({ messageId }) => {
+      const contents: Record<string, [string, string]> = {
+        "history-message": ["Hello", "Olá"],
+        "sent-message": ["Minha mensagem", "Minha mensagem traduzida"],
+        "received-message": ["Mensagem remota", "Mensagem remota traduzida"],
+      };
+      return {
+        messageId,
+        originalContent: contents[messageId][0],
+        translatedContent: contents[messageId][1],
+        targetLanguage: "PT-BR",
+      };
     });
     renderChatSection();
 
-    expect(await screen.findByText("Hello")).toBeTruthy();
+    expect(await screen.findByText("Olá")).toBeTruthy();
 
     const input = screen.getByRole("textbox", { name: "Mensagem" });
     fireEvent.change(input, { target: { value: "Minha mensagem" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-    expect(await screen.findByText("Minha mensagem")).toBeTruthy();
+    expect(await screen.findByText("Minha mensagem traduzida")).toBeTruthy();
 
     act(() => {
       mocks.receivedMessageListener?.({
@@ -642,18 +644,12 @@ describe("ChatSection sending", () => {
         createdAt: "2026-07-29T12:32:00.000Z",
       });
     });
-    expect(screen.getByText("Mensagem remota")).toBeTruthy();
-
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Traduzir mensagem de Maria",
-      })[0]!,
-    );
+    expect(await screen.findByText("Mensagem remota traduzida")).toBeTruthy();
     expect(await screen.findByText("Olá")).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", {
+      screen.getAllByRole("button", {
         name: "Ver original mensagem de Maria",
-      }),
+      })[0]!,
     );
     expect(screen.getByText("Hello")).toBeTruthy();
   });
@@ -679,12 +675,7 @@ describe("ChatSection sending", () => {
     );
     const view = renderChatSection();
 
-    await screen.findByText("Hello");
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Traduzir mensagem de Maria",
-      }),
-    );
+    await screen.findByText("Traduzindo...", { selector: "span" });
     await waitFor(() => {
       expect(translationSignal?.aborted).toBe(false);
     });

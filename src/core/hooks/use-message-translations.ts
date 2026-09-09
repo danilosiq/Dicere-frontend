@@ -35,7 +35,11 @@ type TranslationState = {
 type UseMessageTranslationsParams = {
   roomId?: string;
   targetLanguage?: string | null;
+  messages?: ChatMessage[];
 };
+
+const EMPTY_MESSAGES: ChatMessage[] = [];
+const MAX_AUTOMATIC_TRANSLATIONS = 3;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -89,6 +93,7 @@ function createEntryKey(messageId: string, targetLanguage: string) {
 export function useMessageTranslations({
   roomId,
   targetLanguage,
+  messages = EMPTY_MESSAGES,
 }: UseMessageTranslationsParams) {
   const validTargetLanguage = isDeepLTargetLanguage(targetLanguage)
     ? targetLanguage
@@ -266,6 +271,23 @@ export function useMessageTranslations({
     [scopeKey, updateEntry, validTargetLanguage],
   );
 
+  useEffect(() => {
+    if (!roomId || !validTargetLanguage) return;
+    const entries = entriesRef.current.entries;
+    const pending = messages.filter(
+      (message) =>
+        entries[createEntryKey(message.id, validTargetLanguage)]?.isLoading,
+    ).length;
+    const next = messages
+      .filter(
+        (message) =>
+          message.roomId === roomId &&
+          !entries[createEntryKey(message.id, validTargetLanguage)],
+      )
+      .slice(0, Math.max(0, MAX_AUTOMATIC_TRANSLATIONS - pending));
+    for (const message of next) void translate(message);
+  }, [currentEntries, messages, roomId, translate, validTargetLanguage]);
+
   const showTranslation = useCallback(
     (messageId: string) => {
       if (!validTargetLanguage) return;
@@ -296,21 +318,30 @@ export function useMessageTranslations({
       const entry = entryKey ? currentEntries[entryKey] : undefined;
       const displayMode = entry?.displayMode ?? "original";
       const translatedContent = entry?.translatedContent;
+      const isAutomatic =
+        !disabledReason &&
+        messages.some(
+          (candidate) =>
+            candidate.id === message.id && candidate.roomId === roomId,
+        );
+      const isLoading = entry?.isLoading ?? (isAutomatic && !entry);
 
       return {
         displayedContent:
-          displayMode === "translated" && translatedContent
-            ? translatedContent
-            : message.content,
+          isAutomatic && isLoading
+            ? "Traduzindo..."
+            : displayMode === "translated" && translatedContent
+              ? translatedContent
+              : message.content,
         displayMode,
         translatedContent,
         hasTranslation: Boolean(translatedContent),
-        isLoading: entry?.isLoading ?? false,
+        isLoading,
         error: entry?.error ?? null,
         disabledReason,
       };
     },
-    [currentEntries, roomId, validTargetLanguage],
+    [currentEntries, messages, roomId, validTargetLanguage],
   );
 
   return {

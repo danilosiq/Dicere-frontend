@@ -62,6 +62,155 @@ describe("useMessageTranslations", () => {
     mocks.translateChatMessage.mockReset();
   });
 
+  it("automatically translates messages and preserves the original selection", async () => {
+    mocks.translateChatMessage.mockResolvedValue(translationResponse());
+    const { result, rerender } = renderHook(
+      () =>
+        useMessageTranslations({
+          roomId: "room-id",
+          targetLanguage: "PT-BR",
+          messages: [message],
+        }),
+      { wrapper: createWrapper() },
+    );
+    expect(result.current.getTranslationState(message).displayedContent).toBe(
+      "Traduzindo...",
+    );
+    await waitFor(() =>
+      expect(result.current.getTranslationState(message).displayedContent).toBe(
+        "Olá",
+      ),
+    );
+    act(() => result.current.showOriginal(message.id));
+    rerender();
+    expect(result.current.getTranslationState(message).displayedContent).toBe(
+      "Hello",
+    );
+    expect(mocks.translateChatMessage).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the original on automatic failure without an endless retry loop", async () => {
+    mocks.translateChatMessage.mockRejectedValue(
+      new Error("Tradução indisponível"),
+    );
+    const { result, rerender } = renderHook(
+      () =>
+        useMessageTranslations({
+          roomId: "room-id",
+          targetLanguage: "PT-BR",
+          messages: [message],
+        }),
+      { wrapper: createWrapper() },
+    );
+    await waitFor(() =>
+      expect(result.current.getTranslationState(message).error).toBe(
+        "Tradução indisponível",
+      ),
+    );
+    rerender();
+    expect(result.current.getTranslationState(message).displayedContent).toBe(
+      "Hello",
+    );
+    expect(mocks.translateChatMessage).toHaveBeenCalledOnce();
+    mocks.translateChatMessage.mockResolvedValue(translationResponse());
+    await act(async () => {
+      await result.current.retryTranslation(message);
+    });
+    expect(result.current.getTranslationState(message).displayedContent).toBe(
+      "Olá",
+    );
+  });
+
+  it("limits automatic requests and continues the queue as translations finish", async () => {
+    const messages = Array.from({ length: 5 }, (_, index) => ({
+      ...message,
+      id: "queued-" + index,
+    }));
+    const completions: Array<() => void> = [];
+    mocks.translateChatMessage.mockImplementation(
+      ({ messageId, targetLanguage }) =>
+        new Promise((resolve) =>
+          completions.push(() =>
+            resolve(translationResponse({ messageId, targetLanguage })),
+          ),
+        ),
+    );
+    const { result } = renderHook(
+      () =>
+        useMessageTranslations({
+          roomId: "room-id",
+          targetLanguage: "PT-BR",
+          messages,
+        }),
+      { wrapper: createWrapper() },
+    );
+    await waitFor(() =>
+      expect(mocks.translateChatMessage).toHaveBeenCalledTimes(3),
+    );
+    expect(
+      result.current.getTranslationState(messages[4]).displayedContent,
+    ).toBe("Traduzindo...");
+    await act(async () => {
+      completions[0]();
+    });
+    await waitFor(() =>
+      expect(mocks.translateChatMessage).toHaveBeenCalledTimes(4),
+    );
+    await act(async () => {
+      completions[1]();
+      completions[2]();
+      completions[3]();
+    });
+    await waitFor(() =>
+      expect(mocks.translateChatMessage).toHaveBeenCalledTimes(5),
+    );
+    await act(async () => {
+      completions[4]();
+    });
+    expect(
+      result.current.getTranslationState(messages[4]).displayedContent,
+    ).toBe("Olá");
+  });
+
+  it("automatically translates new messages and a newly selected target language", async () => {
+    mocks.translateChatMessage.mockImplementation(
+      async ({ messageId, targetLanguage }) =>
+        translationResponse({
+          messageId,
+          targetLanguage,
+          translatedContent: targetLanguage === "ES" ? "Hola" : "Olá",
+        }),
+    );
+    const { result, rerender } = renderHook(
+      ({ messages, targetLanguage }) =>
+        useMessageTranslations({ roomId: "room-id", targetLanguage, messages }),
+      {
+        wrapper: createWrapper(),
+        initialProps: { messages: [message], targetLanguage: "PT-BR" },
+      },
+    );
+    await waitFor(() =>
+      expect(result.current.getTranslationState(message).displayedContent).toBe(
+        "Olá",
+      ),
+    );
+    const nextMessage = { ...message, id: "new-message" };
+    rerender({ messages: [message, nextMessage], targetLanguage: "PT-BR" });
+    await waitFor(() =>
+      expect(
+        result.current.getTranslationState(nextMessage).displayedContent,
+      ).toBe("Olá"),
+    );
+    expect(mocks.translateChatMessage).toHaveBeenCalledTimes(2);
+    rerender({ messages: [message, nextMessage], targetLanguage: "ES" });
+    await waitFor(() =>
+      expect(
+        result.current.getTranslationState(nextMessage).displayedContent,
+      ).toBe("Hola"),
+    );
+    expect(mocks.translateChatMessage).toHaveBeenCalledTimes(4);
+  });
+
   it.each([undefined, "INVALID"])(
     "disables translation without a valid target language (%s)",
     async (targetLanguage) => {

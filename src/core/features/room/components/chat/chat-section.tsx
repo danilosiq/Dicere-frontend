@@ -46,6 +46,7 @@ export function ChatSection() {
     participantId: participant?.id,
   });
   const translations = useMessageTranslations({
+    messages: chat.messages,
     roomId: room?.id,
     targetLanguage:
       participant?.targetLanguage ?? resumeSession?.targetLanguage,

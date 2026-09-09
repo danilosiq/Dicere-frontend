@@ -21,7 +21,7 @@ No GitHub, configure em Settings → Secrets and variables → Actions (ou no en
 
 O servidor precisa de Bash, `flock`, Docker Engine e Compose V2 com suporte a `up --wait`. A imagem é construída para Linux amd64; confirmar a arquitetura antes de habilitar produção. O serviço deve estar em execução, com exatamente um contêiner. Configuração, portas, redes, restart policy e volumes continuam vindo do Compose existente.
 
-Para pacotes GHCR privados, o usuário de deploy precisa de login Docker prévio no GHCR usando credencial com somente `read:packages` e acesso ao pacote. O workflow publica usando seu `GITHUB_TOKEN`; essa credencial não é enviada ao servidor. O pacote deve permanecer privado, salvo decisão explícita de torná-lo público.
+O deploy recebe o GITHUB_TOKEN temporário da execução, com somente contents:read e packages:read. Ele é transmitido por stdin no SSH e usado com docker login --password-stdin em um diretório temporário privado. Após o download, esse diretório é removido, inclusive em caso de erro; o login Docker existente no servidor não é alterado. Não é necessário criar um token pessoal permanente ou tornar o pacote público. Nunca imprimir o token ou habilitar tracing dos scripts.
 
 ## Atualização e rollback
 

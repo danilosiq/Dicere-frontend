@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export -n GHCR_TOKEN
 
 [[ "$#" -eq 4 ]] || { echo "Esperados: imagem, compose, projeto, serviço" >&2; exit 1; }
 image="$1"
@@ -32,7 +33,19 @@ old_id=$(docker inspect --format '{{.Image}}' "$container")
 # Mantém a imagem anterior disponível para rollback, mesmo se a tag mudar.
 rollback_image="dicere-rollback/$project-$service:previous"
 docker tag "$old_id" "$rollback_image"
-docker pull "$image"
+pull_image() (
+  if [[ -n "${GHCR_TOKEN:-}" ]]; then
+    : "${GHCR_USER:?Usuário do registry ausente}"
+    registry_dir=$(mktemp -d)
+    export DOCKER_CONFIG="$registry_dir"
+    trap 'rm -f "$registry_dir/config.json"; rmdir "$registry_dir"' EXIT
+    printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+    unset GHCR_TOKEN
+  fi
+  docker pull "$image"
+)
+pull_image
+unset GHCR_TOKEN
 healthcheck=$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$image")
 [[ "$healthcheck" == *CMD* ]] || { echo "A imagem não possui healthcheck." >&2; exit 1; }
 

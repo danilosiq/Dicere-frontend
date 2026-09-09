@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -18,6 +19,11 @@ const fs = require("node:fs");
 const args = process.argv.slice(2);
 const mode = process.env.CD_TEST_MODE;
 fs.appendFileSync(process.env.CD_TEST_LOG, JSON.stringify(args) + "\\n");
+if (args[0] === "login") {
+  fs.writeFileSync(process.env.CD_TEST_CONFIG_LOG, process.env.DOCKER_CONFIG);
+  fs.writeFileSync(process.env.DOCKER_CONFIG + "/config.json", "temporary-test-auth");
+  if (mode === "login-failed") process.exit(1);
+}
 if (args[0] === "compose" && args.includes("ps")) {
   if (mode !== "missing-service") console.log("container-1");
 } else if (args[0] === "inspect") {
@@ -43,6 +49,7 @@ for (const mode of [
   "wrong-image",
   "pull-failed",
   "missing-service",
+  "login-failed",
 ]) {
   test("deploy: " + mode, () => {
     const dir = mkdtempSync(join(tmpdir(), "dicere-cd-test-"));
@@ -57,6 +64,7 @@ for (const mode of [
       const sibling = '{"services":{"peer":{"image":"existing:peer"}}}\n';
       writeFileSync(join(dir, ".dicere-cd", "peer.json"), sibling);
       const log = join(dir, "calls.jsonl");
+      const configLog = join(dir, "config-path");
       const result = spawnSync(
         "bash",
         [resolve("scripts/deploy-remote.sh"), image, compose, "dicere", "app"],
@@ -67,10 +75,22 @@ for (const mode of [
             PATH: bin + ":" + process.env.PATH,
             CD_TEST_LOG: log,
             CD_TEST_MODE: mode,
+            CD_TEST_CONFIG_LOG: configLog,
+            GHCR_USER: "test-user",
+            GHCR_TOKEN: "test-token-never-log",
           },
         },
       );
       assert.equal(result.status, mode === "success" ? 0 : 1, result.stderr);
+      if (mode !== "missing-service") {
+        assert.ok(existsSync(configLog), "Temporary registry login must run");
+        assert.equal(existsSync(readFileSync(configLog, "utf8")), false);
+      }
+      assert.ok(
+        !(result.stdout + result.stderr + readFileSync(log, "utf8")).includes(
+          "test-token-never-log",
+        ),
+      );
       const calls = readFileSync(log, "utf8")
         .trim()
         .split("\n")

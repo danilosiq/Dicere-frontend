@@ -3,7 +3,7 @@ FROM node:22.13.0-alpine AS dependencies
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --global npm@11.6.2 && npm ci
 
 FROM node:22.13.0-alpine AS builder
 

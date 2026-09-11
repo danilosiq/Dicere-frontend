@@ -874,6 +874,7 @@ export function useSpeechTranslation({
       const controller = new AbortController();
       onDeviceFallbackControllerRef.current = controller;
       const locale = localeRef.current;
+      const sourceError = lastNativeErrorRef.current;
 
       void activateOnDeviceSpeechRecognition(locale, controller.signal)
         .then((result) => {
@@ -887,6 +888,8 @@ export function useSpeechTranslation({
             desiredEnabledRef.current = enabled && Boolean(roomId);
             void reportSpeechRecognitionDiagnostic({
               code: "local-fallback-activated",
+              fallbackStatus: result.status,
+              ...(sourceError ? { sourceError } : {}),
               locale,
               mode: "on-device",
               retryAttempt: machineRef.current.retryAttempt,
@@ -902,6 +905,8 @@ export function useSpeechTranslation({
                 ? "local-fallback-failed"
                 : "local-fallback-unavailable",
             ...(result.errorName ? { errorName: result.errorName } : {}),
+            fallbackStatus: result.status,
+            ...(sourceError ? { sourceError } : {}),
             locale,
             mode: "remote",
             retryAttempt: machineRef.current.retryAttempt,

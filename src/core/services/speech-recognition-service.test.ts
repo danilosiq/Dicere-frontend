@@ -146,6 +146,60 @@ describe("speech-recognition-service", () => {
     expect(mocks.applyPolyfill).not.toHaveBeenCalled();
   });
 
+  it.each(["unavailable", "downloading"])(
+    "simula pacote pt-BR com disponibilidade %s sem ativar o fallback",
+    async (availability) => {
+      class NativeRecognition {
+        static available = vi.fn().mockResolvedValue(availability);
+        static install = vi.fn();
+      }
+      Object.defineProperty(window, "SpeechRecognition", {
+        configurable: true,
+        value: NativeRecognition,
+      });
+      await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual(
+        {
+          status: availability,
+        },
+      );
+      expect(mocks.applyPolyfill).not.toHaveBeenCalled();
+      expect(NativeRecognition.install).not.toHaveBeenCalled();
+    },
+  );
+
+  it("simula bloqueio da consulta local por política do navegador", async () => {
+    class NativeRecognition {
+      static available = vi
+        .fn()
+        .mockRejectedValue(new DOMException("Blocked", "SecurityError"));
+      static install = vi.fn();
+    }
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: NativeRecognition,
+    });
+    await expect(
+      activateOnDeviceSpeechRecognition("pt-BR"),
+    ).resolves.toMatchObject({
+      status: "failed",
+    });
+  });
+
+  it("ativa pacote instalado mesmo quando install não é exposto", async () => {
+    class NativeRecognition {
+      static available = vi.fn().mockResolvedValue("available");
+      processLocally = false;
+    }
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: NativeRecognition,
+    });
+    await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual({
+      status: "activated",
+    });
+    expect(mocks.applyPolyfill).toHaveBeenCalledOnce();
+  });
+
   it("restaura explicitamente o construtor remoto do navegador", () => {
     class NativeRecognition {}
     Object.defineProperty(window, "SpeechRecognition", {

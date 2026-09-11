@@ -28,6 +28,8 @@ type OnDeviceSpeechRecognitionConstructor = {
 
 export type SpeechRecognitionDiagnosticInput = {
   code: SpeechRecognitionDiagnosticCode;
+  fallbackStatus?: SpeechRecognitionDiagnosticPayload["fallbackStatus"];
+  sourceError?: SpeechRecognitionDiagnosticCode;
   errorName?: string;
   locale: string;
   mode: SpeechRecognitionMode;
@@ -169,7 +171,7 @@ export async function activateOnDeviceSpeechRecognition(
   if (signal?.aborted) return { status: "cancelled" };
   const NativeSpeechRecognition = getNativeSpeechRecognition();
 
-  if (!NativeSpeechRecognition?.available || !NativeSpeechRecognition.install) {
+  if (!NativeSpeechRecognition?.available) {
     return { status: "unsupported" };
   }
 
@@ -187,6 +189,7 @@ export async function activateOnDeviceSpeechRecognition(
     }
 
     if (availability === "downloadable") {
+      if (!NativeSpeechRecognition.install) return { status: "unsupported" };
       const installed = await NativeSpeechRecognition.install(options);
       if (signal?.aborted) return { status: "cancelled" };
       if (!installed) return { status: "failed" };

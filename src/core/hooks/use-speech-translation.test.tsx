@@ -313,6 +313,44 @@ describe("useSpeechTranslation", () => {
     });
   });
 
+  it.each(["unsupported", "unavailable", "downloading"] as const)(
+    "reproduz diagnóstico de produção na sexta falha de rede com fallback %s",
+    async (status) => {
+      mocks.activateOnDevice.mockResolvedValue({ status });
+      renderSpeechHook();
+
+      for (let attempt = 1; attempt <= 6; attempt += 1) {
+        emitNative("error", { error: "network" });
+        await act(async () => Promise.resolve());
+        if (attempt < 6) {
+          emitNative("end");
+          await act(async () => {
+            vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[attempt - 1]);
+          });
+          emitNative("start");
+        }
+      }
+
+      expect(mocks.reportDiagnostic).toHaveBeenCalledWith({
+        code: "network",
+        locale: "pt-BR",
+        mode: "remote",
+        retryAttempt: 6,
+        stage: "runtime",
+      });
+      expect(mocks.reportDiagnostic).toHaveBeenLastCalledWith({
+        code: "local-fallback-unavailable",
+        fallbackStatus: status,
+        sourceError: "network",
+        locale: "pt-BR",
+        mode: "remote",
+        retryAttempt: 6,
+        stage: "fallback",
+      });
+      expect(mocks.sendSpeech).not.toHaveBeenCalled();
+    },
+  );
+
   it("tenta ativar o fallback local após a segunda falha de rede", async () => {
     mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
     renderSpeechHook();

@@ -168,6 +168,9 @@ export type SpeechRecognitionDiagnosticCode =
 
 export type SpeechRecognitionDiagnosticPayload = {
   code: SpeechRecognitionDiagnosticCode;
+  fallbackStatus?:
+    "activated" | "downloading" | "failed" | "unavailable" | "unsupported";
+  sourceError?: SpeechRecognitionDiagnosticCode;
   errorName?: string;
   locale: string;
   microphonePermission: PermissionState | "unknown";

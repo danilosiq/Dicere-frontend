@@ -167,6 +167,38 @@ export async function reportSpeechRecognitionDiagnostic(
 export async function activateOnDeviceSpeechRecognition(
   locale: string,
   signal?: AbortSignal,
+  onDownloading?: () => void,
+): Promise<OnDeviceActivationResult> {
+  if (signal?.aborted) return { status: "cancelled" };
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout>;
+  let cancel = () => {};
+  const interruption = new Promise<OnDeviceActivationResult>((resolve) => {
+    cancel = () => {
+      controller.abort();
+      resolve({ status: "cancelled" });
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
+    timeout = setTimeout(() => {
+      controller.abort();
+      resolve({ status: "failed", errorName: "TimeoutError" });
+    }, 120_000);
+  });
+  try {
+    return await Promise.race([
+      activateLocalRecognition(locale, controller.signal, onDownloading),
+      interruption,
+    ]);
+  } finally {
+    clearTimeout(timeout!);
+    signal?.removeEventListener("abort", cancel);
+  }
+}
+
+async function activateLocalRecognition(
+  locale: string,
+  signal: AbortSignal,
+  onDownloading?: () => void,
 ): Promise<OnDeviceActivationResult> {
   if (signal?.aborted) return { status: "cancelled" };
   const NativeSpeechRecognition = getNativeSpeechRecognition();
@@ -184,12 +216,9 @@ export async function activateOnDeviceSpeechRecognition(
       return { status: "unavailable" };
     }
 
-    if (availability === "downloading") {
-      return { status: "downloading" };
-    }
-
-    if (availability === "downloadable") {
+    if (availability === "downloadable" || availability === "downloading") {
       if (!NativeSpeechRecognition.install) return { status: "unsupported" };
+      onDownloading?.();
       const installed = await NativeSpeechRecognition.install(options);
       if (signal?.aborted) return { status: "cancelled" };
       if (!installed) return { status: "failed" };

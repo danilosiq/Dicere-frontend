@@ -314,6 +314,7 @@ export function useSpeechTranslation({
   );
   const [machine, setMachine] = useState<RecognitionMachine>(INITIAL_MACHINE);
   const [deliveryIssue, setDeliveryIssue] = useState<CaptionIssue | null>(null);
+  const [localDownloadPending, setLocalDownloadPending] = useState(false);
 
   const machineRef = useRef(machine);
   const desiredEnabledRef = useRef(false);
@@ -373,6 +374,7 @@ export function useSpeechTranslation({
     () => () => {
       onDeviceFallbackControllerRef.current?.abort();
       onDeviceFallbackControllerRef.current = null;
+      setLocalDownloadPending(false);
     },
     [enabled, roomId, language],
   );
@@ -710,6 +712,7 @@ export function useSpeechTranslation({
       const handleResult = () => {
         onDeviceFallbackControllerRef.current?.abort();
         onDeviceFallbackControllerRef.current = null;
+        setLocalDownloadPending(false);
         clearRecognitionTimers();
         endDispositionRef.current = "normal";
         lastNativeErrorRef.current = null;
@@ -876,7 +879,9 @@ export function useSpeechTranslation({
       const locale = localeRef.current;
       const sourceError = lastNativeErrorRef.current;
 
-      void activateOnDeviceSpeechRecognition(locale, controller.signal)
+      void activateOnDeviceSpeechRecognition(locale, controller.signal, () => {
+        if (!controller.signal.aborted) setLocalDownloadPending(true);
+      })
         .then((result) => {
           if (controller.signal.aborted || result.status === "cancelled")
             return;
@@ -912,6 +917,14 @@ export function useSpeechTranslation({
             retryAttempt: machineRef.current.retryAttempt,
             stage: "fallback",
           });
+          if (result.errorName === "TimeoutError") {
+            transition({
+              type: "block",
+              retryable: true,
+              message:
+                "O preparo do idioma demorou mais que o esperado. Tente novamente.",
+            });
+          }
           if (
             source === "manual" &&
             desiredEnabledRef.current &&
@@ -923,10 +936,11 @@ export function useSpeechTranslation({
         .finally(() => {
           if (onDeviceFallbackControllerRef.current === controller) {
             onDeviceFallbackControllerRef.current = null;
+            setLocalDownloadPending(false);
           }
         });
     },
-    [attachNativeListeners, enabled, roomId],
+    [attachNativeListeners, enabled, roomId, transition],
   );
 
   useEffect(() => {
@@ -1256,7 +1270,16 @@ export function useSpeechTranslation({
   return {
     translations,
     captionIssue:
-      machine.status === "disabled" ? null : (machine.issue ?? deliveryIssue),
+      machine.status === "disabled"
+        ? null
+        : localDownloadPending
+          ? {
+              status: "retry_wait" as const,
+              message:
+                "Preparando o idioma para reconhecimento de voz no dispositivo…",
+              retryable: false,
+            }
+          : (machine.issue ?? deliveryIssue),
     retryRecognition,
   };
 }

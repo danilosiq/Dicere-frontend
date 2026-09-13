@@ -21,11 +21,16 @@ const mocks = vi.hoisted(() => ({
   recordMetric: vi.fn(),
   reportDiagnostic: vi.fn(() => Promise.resolve()),
   activateOnDevice: vi.fn(
-    (): Promise<{
+    (
+      ...args: [string?, AbortSignal?, (() => void)?]
+    ): Promise<{
       status:
         "activated" | "downloading" | "failed" | "unavailable" | "unsupported";
       errorName?: string;
-    }> => Promise.resolve({ status: "unsupported" }),
+    }> => {
+      void args;
+      return Promise.resolve({ status: "unsupported" });
+    },
   ),
   restoreRemote: vi.fn(() => true),
   onTranslation: null as null | ((payload: unknown) => void),
@@ -351,6 +356,37 @@ describe("useSpeechTranslation", () => {
     },
   );
 
+  it("mostra preparo do idioma e ativa local após download sem novo erro remoto", async () => {
+    let finish!: (value: { status: "activated" }) => void;
+    mocks.activateOnDevice.mockImplementation(
+      (_locale, _signal, onDownloading) => {
+        onDownloading?.();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    );
+    const { result } = renderSpeechHook();
+    emitNative("error", { error: "service-not-allowed" });
+    expect(result.current.captionIssue?.message).toContain(
+      "Preparando o idioma",
+    );
+    expect(result.current.captionIssue?.retryable).toBe(false);
+    const before = mocks.startListening.mock.calls.length;
+    await act(async () => finish({ status: "activated" }));
+    expect(mocks.startListening).toHaveBeenCalledTimes(before + 1);
+    expect(result.current.captionIssue?.message).not.toContain(
+      "Preparando o idioma",
+    );
+    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "local-fallback-activated",
+        mode: "on-device",
+        sourceError: "service-not-allowed",
+      }),
+    );
+  });
+
   it("tenta ativar o fallback local após a segunda falha de rede", async () => {
     mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
     renderSpeechHook();
@@ -366,6 +402,7 @@ describe("useSpeechTranslation", () => {
     expect(mocks.activateOnDevice).toHaveBeenCalledWith(
       "pt-BR",
       expect.any(AbortSignal),
+      expect.any(Function),
     );
     expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -388,6 +425,7 @@ describe("useSpeechTranslation", () => {
       expect(mocks.activateOnDevice).toHaveBeenCalledWith(
         "pt-BR",
         expect.any(AbortSignal),
+        expect.any(Function),
       );
       expect(mocks.startListening).toHaveBeenCalledTimes(2);
     },
@@ -611,6 +649,7 @@ describe("useSpeechTranslation", () => {
     expect(mocks.activateOnDevice).toHaveBeenCalledWith(
       "pt-BR",
       expect.any(AbortSignal),
+      expect.any(Function),
     );
     expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
       expect.objectContaining({

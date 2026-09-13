@@ -146,7 +146,7 @@ describe("speech-recognition-service", () => {
     expect(mocks.applyPolyfill).not.toHaveBeenCalled();
   });
 
-  it.each(["unavailable", "downloading"])(
+  it.each(["unavailable"])(
     "simula pacote pt-BR com disponibilidade %s sem ativar o fallback",
     async (availability) => {
       class NativeRecognition {
@@ -166,6 +166,67 @@ describe("speech-recognition-service", () => {
       expect(NativeRecognition.install).not.toHaveBeenCalled();
     },
   );
+
+  it("aguarda instalação já em andamento e ativa o reconhecimento local", async () => {
+    let finish!: (value: boolean) => void;
+    class NativeRecognition {
+      static available = vi.fn().mockResolvedValue("downloading");
+      static install = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      processLocally = false;
+    }
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: NativeRecognition,
+    });
+    const progress = vi.fn();
+    const activation = activateOnDeviceSpeechRecognition(
+      "pt-BR",
+      undefined,
+      progress,
+    );
+    await Promise.resolve();
+    expect(progress).toHaveBeenCalledOnce();
+    expect(mocks.applyPolyfill).not.toHaveBeenCalled();
+    finish(true);
+    await expect(activation).resolves.toEqual({ status: "activated" });
+    expect(mocks.applyPolyfill).toHaveBeenCalledOnce();
+  });
+
+  it("limita espera por instalação travada e ignora conclusão atrasada", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: (value: boolean) => void;
+      class NativeRecognition {
+        static available = vi.fn().mockResolvedValue("downloading");
+        static install = vi.fn(
+          () =>
+            new Promise<boolean>((resolve) => {
+              finish = resolve;
+            }),
+        );
+      }
+      Object.defineProperty(window, "SpeechRecognition", {
+        configurable: true,
+        value: NativeRecognition,
+      });
+      const activation = activateOnDeviceSpeechRecognition("pt-BR");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await expect(activation).resolves.toEqual({
+        status: "failed",
+        errorName: "TimeoutError",
+      });
+      finish(true);
+      await Promise.resolve();
+      expect(mocks.applyPolyfill).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("simula bloqueio da consulta local por política do navegador", async () => {
     class NativeRecognition {

@@ -23,6 +23,7 @@ export const metadata: Metadata = {
     template: "%s | Dicere",
   },
   description: "Comunicação simples, direta e acessível.",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

@@ -72,6 +72,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           label="Senha"
           placeholder="Senha"
           type="password"
+          autoComplete="new-password"
           error={errors.password?.message}
           required
           {...register("password")}

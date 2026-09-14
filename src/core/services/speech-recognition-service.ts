@@ -1,30 +1,9 @@
-import SpeechRecognition from "react-speech-recognition";
-
 import type {
   SpeechRecognitionDiagnosticCode,
   SpeechRecognitionDiagnosticPayload,
   SpeechRecognitionMode,
 } from "@/core/@types/socket-events";
 import { getSocket } from "@/core/services/socket-service";
-
-type OnDeviceAvailability =
-  "available" | "downloadable" | "downloading" | "unavailable";
-
-type OnDeviceSpeechRecognition = globalThis.SpeechRecognition & {
-  processLocally: boolean;
-};
-
-type OnDeviceSpeechRecognitionConstructor = {
-  new (): OnDeviceSpeechRecognition;
-  available?: (options: {
-    langs: string[];
-    processLocally: boolean;
-  }) => Promise<OnDeviceAvailability>;
-  install?: (options: {
-    langs: string[];
-    processLocally: boolean;
-  }) => Promise<boolean>;
-};
 
 export type SpeechRecognitionDiagnosticInput = {
   code: SpeechRecognitionDiagnosticCode;
@@ -36,24 +15,6 @@ export type SpeechRecognitionDiagnosticInput = {
   retryAttempt: number;
   stage: SpeechRecognitionDiagnosticPayload["stage"];
 };
-
-export type OnDeviceActivationResult = {
-  status:
-    | "activated"
-    | "cancelled"
-    | "downloading"
-    | "failed"
-    | "unavailable"
-    | "unsupported";
-  errorName?: string;
-};
-
-function getNativeSpeechRecognition() {
-  if (typeof window === "undefined") return undefined;
-
-  return (window.SpeechRecognition || window.webkitSpeechRecognition) as
-    OnDeviceSpeechRecognitionConstructor | undefined;
-}
 
 async function getMicrophonePermission() {
   if (typeof navigator === "undefined" || !navigator.permissions?.query) {
@@ -162,90 +123,4 @@ export async function reportSpeechRecognitionDiagnostic(
   } catch {
     // O console local continua sendo o fallback quando o socket não existe.
   }
-}
-
-export async function activateOnDeviceSpeechRecognition(
-  locale: string,
-  signal?: AbortSignal,
-  onDownloading?: () => void,
-): Promise<OnDeviceActivationResult> {
-  if (signal?.aborted) return { status: "cancelled" };
-  const controller = new AbortController();
-  let timeout: ReturnType<typeof setTimeout>;
-  let cancel = () => {};
-  const interruption = new Promise<OnDeviceActivationResult>((resolve) => {
-    cancel = () => {
-      controller.abort();
-      resolve({ status: "cancelled" });
-    };
-    signal?.addEventListener("abort", cancel, { once: true });
-    timeout = setTimeout(() => {
-      controller.abort();
-      resolve({ status: "failed", errorName: "TimeoutError" });
-    }, 120_000);
-  });
-  try {
-    return await Promise.race([
-      activateLocalRecognition(locale, controller.signal, onDownloading),
-      interruption,
-    ]);
-  } finally {
-    clearTimeout(timeout!);
-    signal?.removeEventListener("abort", cancel);
-  }
-}
-
-async function activateLocalRecognition(
-  locale: string,
-  signal: AbortSignal,
-  onDownloading?: () => void,
-): Promise<OnDeviceActivationResult> {
-  if (signal?.aborted) return { status: "cancelled" };
-  const NativeSpeechRecognition = getNativeSpeechRecognition();
-
-  if (!NativeSpeechRecognition?.available) {
-    return { status: "unsupported" };
-  }
-
-  try {
-    const options = { langs: [locale], processLocally: true };
-    const availability = await NativeSpeechRecognition.available(options);
-    if (signal?.aborted) return { status: "cancelled" };
-
-    if (availability === "unavailable") {
-      return { status: "unavailable" };
-    }
-
-    if (availability === "downloadable" || availability === "downloading") {
-      if (!NativeSpeechRecognition.install) return { status: "unsupported" };
-      onDownloading?.();
-      const installed = await NativeSpeechRecognition.install(options);
-      if (signal?.aborted) return { status: "cancelled" };
-      if (!installed) return { status: "failed" };
-    }
-
-    class LocalSpeechRecognition extends NativeSpeechRecognition {
-      constructor() {
-        super();
-        this.processLocally = true;
-      }
-    }
-
-    SpeechRecognition.applyPolyfill(LocalSpeechRecognition);
-    return { status: "activated" };
-  } catch (cause) {
-    if (signal?.aborted) return { status: "cancelled" };
-    return {
-      status: "failed",
-      ...(cause instanceof Error ? { errorName: cause.name } : {}),
-    };
-  }
-}
-
-export function restoreRemoteSpeechRecognition() {
-  const NativeSpeechRecognition = getNativeSpeechRecognition();
-  if (!NativeSpeechRecognition) return false;
-
-  SpeechRecognition.applyPolyfill(NativeSpeechRecognition);
-  return true;
 }

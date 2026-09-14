@@ -1,13 +1,7 @@
 "use client";
 
-import SpeechRecognition, {
-  useSpeechRecognition,
-} from "react-speech-recognition";
 import { useCallback, useEffect, useRef, useState } from "react";
-
 import type {
-  SpeechRecognitionDiagnosticCode,
-  SpeechRecognitionMode,
   SpeechSegmentStatus,
   TranslateSpeechPayload,
   VoiceTranslationReceivedPayload,
@@ -19,55 +13,12 @@ import {
   splitSpeechText,
   subscribeToSpeechTranslations,
 } from "@/core/services/speech-translation-service";
-import {
-  activateOnDeviceSpeechRecognition,
-  reportSpeechRecognitionDiagnostic,
-  restoreRemoteSpeechRecognition,
-} from "@/core/services/speech-recognition-service";
 import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
+import { useLocalSpeech, type LocalCaptionIssue } from "./use-local-speech";
 
-export const SPEECH_END_GRACE_MS = 150;
-export const SPEECH_SILENT_REARM_MS = 250;
-export const SPEECH_SILENCE_TIMEOUT_MS = 400;
-export const SPEECH_CONTINUOUS_FLUSH_MS = 2_000;
-export const SPEECH_RETRY_BACKOFF_MS = [
-  1_000, 2_000, 4_000, 8_000, 16_000, 30_000,
-] as const;
 export const SPEECH_TRANSLATION_HISTORY_LIMIT = 100;
 export const SPEECH_PREVIOUS_CONTEXT_LIMIT = 250;
-
-export type SpeechRecognitionStatus =
-  "disabled" | "starting" | "listening" | "retry_wait" | "blocked";
-
-export type CaptionIssue = {
-  status: "retry_wait" | "blocked";
-  message: string;
-  retryable: boolean;
-};
-
-type RecognitionMachine = {
-  status: SpeechRecognitionStatus;
-  issue: CaptionIssue | null;
-  retryAttempt: number;
-};
-
-type RecognitionAction =
-  | { type: "block"; message: string; retryable: boolean }
-  | { type: "disable" }
-  | { type: "healthy" }
-  | { type: "manual-start" }
-  | { type: "start" }
-  | { type: "started" }
-  | { type: "transient-error"; message: string };
-
-type EndDisposition = "blocked" | "disabled" | "normal" | "retry" | "silent";
-
-type UseSpeechTranslationParams = {
-  roomId?: string;
-  language: DeepLTargetLanguage;
-  enabled: boolean;
-};
-
+export type CaptionIssue = LocalCaptionIssue;
 export type ReceivedVoiceTranslation = VoiceTranslationReceivedPayload & {
   sequence: number;
 };
@@ -77,12 +28,6 @@ type NormalizedReceivedVoiceTranslation = ReceivedVoiceTranslation & {
   revision: number;
   status: SpeechSegmentStatus;
   traceId: string;
-};
-
-const INITIAL_MACHINE: RecognitionMachine = {
-  status: "disabled",
-  issue: null,
-  retryAttempt: 0,
 };
 
 let fallbackIdentifierSequence = 0;
@@ -186,165 +131,25 @@ function mergeReceivedTranslation(
     .slice(-SPEECH_TRANSLATION_HISTORY_LIMIT);
 }
 
-function reduceRecognitionMachine(
-  current: RecognitionMachine,
-  action: RecognitionAction,
-): RecognitionMachine {
-  switch (action.type) {
-    case "disable":
-      return INITIAL_MACHINE;
-    case "start":
-      return { ...current, status: "starting" };
-    case "manual-start":
-      return { ...current, status: "starting", retryAttempt: 0 };
-    case "started":
-      return { ...current, status: "listening" };
-    case "healthy":
-      return { status: "listening", issue: null, retryAttempt: 0 };
-    case "transient-error":
-      return {
-        status: "retry_wait",
-        issue: {
-          status: "retry_wait",
-          message: action.message,
-          retryable: true,
-        },
-        retryAttempt: current.retryAttempt + 1,
-      };
-    case "block":
-      return {
-        status: "blocked",
-        issue: {
-          status: "blocked",
-          message: action.message,
-          retryable: action.retryable,
-        },
-        retryAttempt: current.retryAttempt,
-      };
-  }
-}
-
-function classifyNativeError(
-  error: string,
-):
-  | { kind: "blocked"; message: string; retryable: boolean }
-  | { kind: "ignored" }
-  | { kind: "silent" }
-  | { kind: "transient"; message: string } {
-  switch (error) {
-    case "aborted":
-      return { kind: "ignored" };
-    case "no-speech":
-      return { kind: "silent" };
-    case "network":
-      return {
-        kind: "transient",
-        message:
-          "O serviço de reconhecimento de voz está temporariamente indisponível.",
-      };
-    case "not-allowed":
-      return {
-        kind: "blocked",
-        message:
-          "O navegador bloqueou o microfone. Libere a permissão para este site.",
-        retryable: true,
-      };
-    case "service-not-allowed":
-      return {
-        kind: "blocked",
-        message: "O navegador bloqueou o serviço de reconhecimento de voz.",
-        retryable: true,
-      };
-    case "audio-capture":
-      return {
-        kind: "blocked",
-        message:
-          "O navegador não encontrou um microfone disponível para reconhecimento.",
-        retryable: true,
-      };
-    case "language-not-supported":
-      return {
-        kind: "blocked",
-        message:
-          "O navegador não oferece reconhecimento para o idioma selecionado.",
-        retryable: true,
-      };
-    default:
-      return {
-        kind: "blocked",
-        message: `Falha no reconhecimento de voz: ${error}.`,
-        retryable: false,
-      };
-  }
-}
-
-function toDiagnosticCode(error: string): SpeechRecognitionDiagnosticCode {
-  switch (error) {
-    case "aborted":
-    case "audio-capture":
-    case "language-not-supported":
-    case "network":
-    case "no-speech":
-    case "not-allowed":
-    case "service-not-allowed":
-      return error;
-    default:
-      return "unknown";
-  }
-}
-
-function stopListeningSafely() {
-  void SpeechRecognition.stopListening().catch(() => undefined);
-}
-
 export function useSpeechTranslation({
   roomId,
   language,
   enabled,
-}: UseSpeechTranslationParams) {
-  const {
-    transcript,
-    interimTranscript,
-    finalTranscript,
-    listening,
-    browserSupportsSpeechRecognition,
-  } = useSpeechRecognition();
+}: {
+  roomId?: string;
+  language: DeepLTargetLanguage;
+  enabled: boolean;
+}) {
   const [translations, setTranslations] = useState<ReceivedVoiceTranslation[]>(
     [],
   );
-  const [machine, setMachine] = useState<RecognitionMachine>(INITIAL_MACHINE);
   const [deliveryIssue, setDeliveryIssue] = useState<CaptionIssue | null>(null);
-  const [localDownloadPending, setLocalDownloadPending] = useState(false);
-
-  const machineRef = useRef(machine);
-  const desiredEnabledRef = useRef(false);
-  const previousRoomIdRef = useRef(roomId);
-  const localeRef = useRef(toSpeechRecognitionLocale(language));
-  const listeningRef = useRef(listening);
-  const previousLocaleRef = useRef(toSpeechRecognitionLocale(language));
-  const startInFlightRef = useRef(false);
-  const endDispositionRef = useRef<EndDisposition>("normal");
-  const detachNativeListenersRef = useRef<() => void>(() => undefined);
-  const startRecognitionRef = useRef<(source?: "automatic" | "manual") => void>(
-    () => undefined,
-  );
-  const attemptOnDeviceFallbackRef = useRef<
-    (source?: "automatic" | "manual") => void
-  >(() => undefined);
-  const recognitionModeRef = useRef<SpeechRecognitionMode>("remote");
-  const lastNativeErrorRef = useRef<SpeechRecognitionDiagnosticCode | null>(
-    null,
-  );
-  const onDeviceFallbackControllerRef = useRef<AbortController | null>(null);
-  const unsupportedBrowserReportedRef = useRef(false);
-
-  const sessionFinalTranscriptRef = useRef("");
-  const lastObservedFinalRef = useRef("");
-  const sentCursorRef = useRef(0);
-  const recognitionStartedAtRef = useRef<number | null>(null);
-  const speechStartedAtRef = useRef<number | null>(null);
-  const firstInterimMeasuredRef = useRef(false);
-  const firstFinalMeasuredRef = useRef(false);
+  const [stateRoomId, setStateRoomId] = useState(roomId);
+  if (stateRoomId !== roomId) {
+    setStateRoomId(roomId);
+    setTranslations([]);
+    setDeliveryIssue(null);
+  }
   const pendingDeliveriesRef = useRef<TranslateSpeechPayload[]>([]);
   const inFlightDeliveriesRef = useRef(new Set<string>());
   const blockedDeliveriesRef = useRef(new Set<string>());
@@ -352,73 +157,15 @@ export function useSpeechTranslation({
   const incomingSequenceRef = useRef(0);
   const previousFinalContextRef = useRef("");
   const translationsRef = useRef<NormalizedReceivedVoiceTranslation[]>([]);
+  const deliveryGenerationRef = useRef(0);
   const pendingCommitMetricsRef = useRef(
     new Map<
       string,
       { receivedAt: number; segmentId: string; traceId: string }
     >(),
   );
-
-  const silenceTimerRef = useRef<number | null>(null);
-  const continuousTimerRef = useRef<number | null>(null);
-  const speechEndTimerRef = useRef<number | null>(null);
-  const rearmTimerRef = useRef<number | null>(null);
-  const recognitionRetryTimerRef = useRef<number | null>(null);
   const deliveryRetryTimerRef = useRef<number | null>(null);
-  const flushBufferRef = useRef<() => void>(() => undefined);
   const retryPendingDeliveryRef = useRef<() => void>(() => undefined);
-  const requestFinalizationRef = useRef<() => void>(() => undefined);
-  const scheduleRecognitionRetryRef = useRef<() => void>(() => undefined);
-
-  useEffect(
-    () => () => {
-      onDeviceFallbackControllerRef.current?.abort();
-      onDeviceFallbackControllerRef.current = null;
-      setLocalDownloadPending(false);
-    },
-    [enabled, roomId, language],
-  );
-
-  useEffect(() => {
-    desiredEnabledRef.current =
-      enabled && Boolean(roomId) && browserSupportsSpeechRecognition;
-    localeRef.current = toSpeechRecognitionLocale(language);
-    listeningRef.current = listening;
-  }, [browserSupportsSpeechRecognition, enabled, language, listening, roomId]);
-
-  const transition = useCallback((action: RecognitionAction) => {
-    const next = reduceRecognitionMachine(machineRef.current, action);
-    machineRef.current = next;
-    setMachine(next);
-    return next;
-  }, []);
-
-  const clearSegmentTimers = useCallback(() => {
-    if (silenceTimerRef.current !== null) {
-      window.clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (continuousTimerRef.current !== null) {
-      window.clearTimeout(continuousTimerRef.current);
-      continuousTimerRef.current = null;
-    }
-    if (speechEndTimerRef.current !== null) {
-      window.clearTimeout(speechEndTimerRef.current);
-      speechEndTimerRef.current = null;
-    }
-  }, []);
-
-  const clearRecognitionTimers = useCallback(() => {
-    if (rearmTimerRef.current !== null) {
-      window.clearTimeout(rearmTimerRef.current);
-      rearmTimerRef.current = null;
-    }
-    if (recognitionRetryTimerRef.current !== null) {
-      window.clearTimeout(recognitionRetryTimerRef.current);
-      recognitionRetryTimerRef.current = null;
-    }
-  }, []);
-
   const clearDeliveryTimer = useCallback(() => {
     if (deliveryRetryTimerRef.current !== null) {
       window.clearTimeout(deliveryRetryTimerRef.current);
@@ -428,6 +175,7 @@ export function useSpeechTranslation({
 
   const deliverPendingPayload = useCallback(
     (payload: TranslateSpeechPayload) => {
+      const generation = deliveryGenerationRef.current;
       const deliveryKey = getDeliveryKey(payload);
       if (
         inFlightDeliveriesRef.current.has(deliveryKey) ||
@@ -441,6 +189,7 @@ export function useSpeechTranslation({
       try {
         sendSpeechForTranslation(payload, {
           onAcknowledged: (acknowledgedPayload) => {
+            if (generation !== deliveryGenerationRef.current) return;
             const acknowledgedKey = getDeliveryKey(acknowledgedPayload);
             inFlightDeliveriesRef.current.delete(acknowledgedKey);
             blockedDeliveriesRef.current.delete(acknowledgedKey);
@@ -455,6 +204,7 @@ export function useSpeechTranslation({
             }
           },
           onTerminalError: (failedPayload, failure) => {
+            if (generation !== deliveryGenerationRef.current) return;
             const failedKey = getDeliveryKey(failedPayload);
             inFlightDeliveriesRef.current.delete(failedKey);
             const isStillPending = pendingDeliveriesRef.current.some(
@@ -488,93 +238,66 @@ export function useSpeechTranslation({
     [clearDeliveryTimer],
   );
 
-  const resetSessionCursor = useCallback(() => {
-    sessionFinalTranscriptRef.current = "";
-    lastObservedFinalRef.current = "";
-    sentCursorRef.current = 0;
-    recognitionStartedAtRef.current = null;
-    speechStartedAtRef.current = null;
-    firstInterimMeasuredRef.current = false;
-    firstFinalMeasuredRef.current = false;
-    clearSegmentTimers();
-  }, [clearSegmentTimers]);
+  const sendTranscript = useCallback(
+    (text: string) => {
+      const newText = text.trim();
+      if (!newText) return;
+      if (!roomId) return;
 
-  const flushBuffer = useCallback(() => {
-    clearSegmentTimers();
-
-    const completeTranscript = sessionFinalTranscriptRef.current;
-    const cursor = Math.min(sentCursorRef.current, completeTranscript.length);
-    const newText = completeTranscript.slice(cursor).trim();
-
-    if (!newText && pendingDeliveriesRef.current.length === 0) return;
-    if (!roomId) return;
-
-    if (newText) {
-      const segmentationStartedAt = getMonotonicNow();
-      const newPayloads = createFinalSpeechPayloads({
-        roomId,
-        text: newText,
-        sourceLanguage: language,
-        previousContext: previousFinalContextRef.current,
-        firstSequence: outboundSequenceRef.current + 1,
-      });
-
-      if (newPayloads.length > 0) {
-        outboundSequenceRef.current += newPayloads.length;
-        previousFinalContextRef.current =
-          newPayloads.at(-1)?.text.slice(-SPEECH_PREVIOUS_CONTEXT_LIMIT) ??
-          previousFinalContextRef.current;
-        pendingDeliveriesRef.current.push(...newPayloads);
-
-        const segmentReadyAt = getMonotonicNow();
-        newPayloads.forEach(({ segmentId, traceId }) => {
-          recordSpeechTranslationMetric({
-            name: "segment_ready",
-            observedAt: segmentReadyAt,
-            segmentId,
-            traceId,
-            durationMs: segmentReadyAt - segmentationStartedAt,
-          });
+      if (newText) {
+        const segmentationStartedAt = getMonotonicNow();
+        const newPayloads = createFinalSpeechPayloads({
+          roomId,
+          text: newText,
+          sourceLanguage: language,
+          previousContext: previousFinalContextRef.current,
+          firstSequence: outboundSequenceRef.current + 1,
         });
+
+        if (newPayloads.length > 0) {
+          outboundSequenceRef.current += newPayloads.length;
+          previousFinalContextRef.current =
+            newPayloads.at(-1)?.text.slice(-SPEECH_PREVIOUS_CONTEXT_LIMIT) ??
+            previousFinalContextRef.current;
+          pendingDeliveriesRef.current.push(...newPayloads);
+
+          const segmentReadyAt = getMonotonicNow();
+          newPayloads.forEach(({ segmentId, traceId }) => {
+            recordSpeechTranslationMetric({
+              name: "segment_ready",
+              observedAt: segmentReadyAt,
+              segmentId,
+              traceId,
+              durationMs: segmentReadyAt - segmentationStartedAt,
+            });
+          });
+        }
       }
 
-      // O cursor avança depois que a identidade foi criada. Se o transporte
-      // falhar, os payloads pendentes mantêm segmentId, sequence e traceId.
-      sentCursorRef.current = completeTranscript.length;
-    }
+      try {
+        pendingDeliveriesRef.current.forEach((payload) => {
+          deliverPendingPayload(payload);
+        });
 
-    try {
-      pendingDeliveriesRef.current.forEach((payload) => {
-        deliverPendingPayload(payload);
-      });
-
-      clearDeliveryTimer();
-    } catch (cause) {
-      setDeliveryIssue({
-        status: "retry_wait",
-        message:
-          cause instanceof Error
-            ? cause.message
-            : "Não foi possível enviar este trecho para tradução.",
-        retryable: false,
-      });
-      clearDeliveryTimer();
-      deliveryRetryTimerRef.current = window.setTimeout(
-        () => retryPendingDeliveryRef.current(),
-        1_000,
-      );
-    }
-  }, [
-    clearDeliveryTimer,
-    clearSegmentTimers,
-    deliverPendingPayload,
-    language,
-    roomId,
-  ]);
-
-  useEffect(() => {
-    flushBufferRef.current = flushBuffer;
-  }, [flushBuffer]);
+        clearDeliveryTimer();
+      } catch (cause) {
+        setDeliveryIssue({
+          status: "retry_wait",
+          message:
+            cause instanceof Error
+              ? cause.message
+              : "Não foi possível enviar este trecho para tradução.",
+          retryable: false,
+        });
+        clearDeliveryTimer();
+        deliveryRetryTimerRef.current = window.setTimeout(
+          () => retryPendingDeliveryRef.current(),
+          1_000,
+        );
+      }
+    },
+    [clearDeliveryTimer, deliverPendingPayload, language, roomId],
+  );
 
   const retryPendingDelivery = useCallback(() => {
     if (pendingDeliveriesRef.current.length === 0 || !roomId) return;
@@ -606,542 +329,35 @@ export function useSpeechTranslation({
     retryPendingDeliveryRef.current = retryPendingDelivery;
   }, [retryPendingDelivery]);
 
-  const requestFinalization = useCallback(() => {
-    clearSegmentTimers();
-    if (
-      !desiredEnabledRef.current ||
-      machineRef.current.status !== "listening"
-    ) {
-      return;
-    }
-
-    endDispositionRef.current = "normal";
-    if (listeningRef.current) stopListeningSafely();
-  }, [clearSegmentTimers]);
-
   useEffect(() => {
-    requestFinalizationRef.current = requestFinalization;
-  }, [requestFinalization]);
-
-  const scheduleRecognitionRetry = useCallback(() => {
-    if (!desiredEnabledRef.current) return;
-
-    clearRecognitionTimers();
-    const attempt = Math.max(machineRef.current.retryAttempt, 1);
-    const delay =
-      SPEECH_RETRY_BACKOFF_MS[
-        Math.min(attempt - 1, SPEECH_RETRY_BACKOFF_MS.length - 1)
-      ];
-
-    recognitionRetryTimerRef.current = window.setTimeout(() => {
-      recognitionRetryTimerRef.current = null;
-      startRecognitionRef.current("automatic");
-    }, delay);
-  }, [clearRecognitionTimers]);
-
-  useEffect(() => {
-    scheduleRecognitionRetryRef.current = scheduleRecognitionRetry;
-  }, [scheduleRecognitionRetry]);
-
-  const startRecognition = useCallback(
-    (source: "automatic" | "manual" = "automatic") => {
-      if (!desiredEnabledRef.current || startInFlightRef.current) return;
-
-      clearRecognitionTimers();
-      resetSessionCursor();
-      endDispositionRef.current = "normal";
-      startInFlightRef.current = true;
-      transition({ type: source === "manual" ? "manual-start" : "start" });
-
-      void SpeechRecognition.startListening({
-        continuous: false,
-        language: localeRef.current,
-      }).catch((cause: unknown) => {
-        startInFlightRef.current = false;
-        if (!desiredEnabledRef.current) {
-          transition({ type: "disable" });
-          return;
-        }
-        endDispositionRef.current = "retry";
-        const next = transition({
-          type: "transient-error",
-          message: "Não foi possível iniciar o reconhecimento de voz.",
-        });
-        void reportSpeechRecognitionDiagnostic({
-          code: "start-failed",
-          ...(cause instanceof Error ? { errorName: cause.name } : {}),
-          locale: localeRef.current,
-          mode: recognitionModeRef.current,
-          retryAttempt: next.retryAttempt,
-          stage: "start",
-        });
-        scheduleRecognitionRetryRef.current();
-      });
-    },
-    [clearRecognitionTimers, resetSessionCursor, transition],
-  );
-
-  useEffect(() => {
-    startRecognitionRef.current = startRecognition;
-  }, [startRecognition]);
-
-  const attachNativeListeners = useCallback(
-    (recognition: globalThis.SpeechRecognition | null) => {
-      detachNativeListenersRef.current();
-      if (!recognition) {
-        detachNativeListenersRef.current = () => undefined;
-        return;
-      }
-
-      const handleStart = () => {
-        startInFlightRef.current = false;
-        if (!desiredEnabledRef.current) {
-          endDispositionRef.current = "disabled";
-          transition({ type: "disable" });
-          if (listeningRef.current) stopListeningSafely();
-          return;
-        }
-        recognitionStartedAtRef.current ??= getMonotonicNow();
-        transition({ type: "started" });
-      };
-      const handleSpeechStart = () => {
-        speechStartedAtRef.current = getMonotonicNow();
-        firstInterimMeasuredRef.current = false;
-        firstFinalMeasuredRef.current = false;
-      };
-      const handleResult = () => {
-        onDeviceFallbackControllerRef.current?.abort();
-        onDeviceFallbackControllerRef.current = null;
-        setLocalDownloadPending(false);
-        clearRecognitionTimers();
-        endDispositionRef.current = "normal";
-        lastNativeErrorRef.current = null;
-        transition({ type: "healthy" });
-      };
-      const handleSpeechEnd = () => {
-        if (speechEndTimerRef.current !== null) {
-          window.clearTimeout(speechEndTimerRef.current);
-        }
-        speechEndTimerRef.current = window.setTimeout(() => {
-          speechEndTimerRef.current = null;
-          requestFinalizationRef.current();
-        }, SPEECH_END_GRACE_MS);
-      };
-      const handleNoMatch = () => {
-        clearSegmentTimers();
-        endDispositionRef.current = "silent";
-        if (listeningRef.current) stopListeningSafely();
-      };
-      const handleError = (event: SpeechRecognitionErrorEvent) => {
-        startInFlightRef.current = false;
-        if (!desiredEnabledRef.current) {
-          endDispositionRef.current = "disabled";
-          transition({ type: "disable" });
-          return;
-        }
-        const classified = classifyNativeError(event.error);
-
-        if (classified.kind === "ignored") return;
-
-        if (classified.kind === "silent") {
-          clearSegmentTimers();
-          endDispositionRef.current = "silent";
-          if (listeningRef.current) stopListeningSafely();
-          return;
-        }
-
-        clearRecognitionTimers();
-        clearSegmentTimers();
-        lastNativeErrorRef.current = toDiagnosticCode(event.error);
-        if (classified.kind === "transient") {
-          endDispositionRef.current = "retry";
-          const next = transition({
-            type: "transient-error",
-            message: classified.message,
-          });
-          void reportSpeechRecognitionDiagnostic({
-            code: toDiagnosticCode(event.error),
-            locale: localeRef.current,
-            mode: recognitionModeRef.current,
-            retryAttempt: next.retryAttempt,
-            stage: "runtime",
-          });
-          if (
-            event.error === "network" &&
-            recognitionModeRef.current === "remote" &&
-            next.retryAttempt >= 2
-          ) {
-            attemptOnDeviceFallbackRef.current();
-          }
-        } else {
-          endDispositionRef.current = "blocked";
-          const next = transition({
-            type: "block",
-            message: classified.message,
-            retryable: classified.retryable,
-          });
-          void reportSpeechRecognitionDiagnostic({
-            code: toDiagnosticCode(event.error),
-            locale: localeRef.current,
-            mode: recognitionModeRef.current,
-            retryAttempt: next.retryAttempt,
-            stage: "runtime",
-          });
-          if (
-            recognitionModeRef.current === "remote" &&
-            (event.error === "service-not-allowed" ||
-              event.error === "language-not-supported")
-          ) {
-            attemptOnDeviceFallbackRef.current();
-          }
-        }
-
-        if (listeningRef.current) stopListeningSafely();
-      };
-      const handleEnd = () => {
-        startInFlightRef.current = false;
-
-        if (!desiredEnabledRef.current) {
-          endDispositionRef.current = "disabled";
-          transition({ type: "disable" });
-          return;
-        }
-
-        const disposition = endDispositionRef.current;
-        endDispositionRef.current = "normal";
-
-        if (disposition === "blocked") return;
-        if (disposition === "retry") {
-          scheduleRecognitionRetryRef.current();
-          return;
-        }
-        if (disposition === "disabled") return;
-
-        if (disposition === "silent") {
-          rearmTimerRef.current = window.setTimeout(() => {
-            rearmTimerRef.current = null;
-            startRecognitionRef.current("automatic");
-          }, SPEECH_SILENT_REARM_MS);
-          return;
-        }
-
-        if (rearmTimerRef.current !== null) {
-          window.clearTimeout(rearmTimerRef.current);
-        }
-        rearmTimerRef.current = window.setTimeout(() => {
-          rearmTimerRef.current = null;
-          flushBufferRef.current();
-          startRecognitionRef.current("automatic");
-        }, SPEECH_END_GRACE_MS);
-      };
-
-      recognition.addEventListener("start", handleStart);
-      recognition.addEventListener("audiostart", handleStart);
-      recognition.addEventListener("result", handleResult);
-      recognition.addEventListener("speechstart", handleSpeechStart);
-      recognition.addEventListener("speechend", handleSpeechEnd);
-      recognition.addEventListener("nomatch", handleNoMatch);
-      recognition.addEventListener("error", handleError);
-      recognition.addEventListener("end", handleEnd);
-
-      detachNativeListenersRef.current = () => {
-        recognition.removeEventListener("start", handleStart);
-        recognition.removeEventListener("audiostart", handleStart);
-        recognition.removeEventListener("result", handleResult);
-        recognition.removeEventListener("speechstart", handleSpeechStart);
-        recognition.removeEventListener("speechend", handleSpeechEnd);
-        recognition.removeEventListener("nomatch", handleNoMatch);
-        recognition.removeEventListener("error", handleError);
-        recognition.removeEventListener("end", handleEnd);
-      };
-    },
-    [clearRecognitionTimers, clearSegmentTimers, transition],
-  );
-
-  useEffect(() => {
-    attachNativeListeners(SpeechRecognition.getRecognition());
-    return () => detachNativeListenersRef.current();
-  }, [attachNativeListeners]);
-
-  const attemptOnDeviceFallback = useCallback(
-    (source: "automatic" | "manual" = "automatic") => {
-      if (
-        !enabled ||
-        !roomId ||
-        onDeviceFallbackControllerRef.current ||
-        recognitionModeRef.current === "on-device"
-      ) {
-        return;
-      }
-
-      const controller = new AbortController();
-      onDeviceFallbackControllerRef.current = controller;
-      const locale = localeRef.current;
-      const sourceError = lastNativeErrorRef.current;
-
-      void activateOnDeviceSpeechRecognition(locale, controller.signal, () => {
-        if (!controller.signal.aborted) setLocalDownloadPending(true);
-      })
-        .then((result) => {
-          if (controller.signal.aborted || result.status === "cancelled")
-            return;
-
-          if (result.status === "activated") {
-            recognitionModeRef.current = "on-device";
-            startInFlightRef.current = false;
-            attachNativeListeners(SpeechRecognition.getRecognition());
-            desiredEnabledRef.current = enabled && Boolean(roomId);
-            void reportSpeechRecognitionDiagnostic({
-              code: "local-fallback-activated",
-              fallbackStatus: result.status,
-              ...(sourceError ? { sourceError } : {}),
-              locale,
-              mode: "on-device",
-              retryAttempt: machineRef.current.retryAttempt,
-              stage: "fallback",
-            });
-            startRecognitionRef.current("automatic");
-            return;
-          }
-
-          void reportSpeechRecognitionDiagnostic({
-            code:
-              result.status === "failed"
-                ? "local-fallback-failed"
-                : "local-fallback-unavailable",
-            ...(result.errorName ? { errorName: result.errorName } : {}),
-            fallbackStatus: result.status,
-            ...(sourceError ? { sourceError } : {}),
-            locale,
-            mode: "remote",
-            retryAttempt: machineRef.current.retryAttempt,
-            stage: "fallback",
-          });
-          if (result.errorName === "TimeoutError") {
-            transition({
-              type: "block",
-              retryable: true,
-              message:
-                "O preparo do idioma demorou mais que o esperado. Tente novamente.",
-            });
-          }
-          if (
-            source === "manual" &&
-            desiredEnabledRef.current &&
-            machineRef.current.issue?.retryable !== false
-          ) {
-            startRecognitionRef.current("manual");
-          }
-        })
-        .finally(() => {
-          if (onDeviceFallbackControllerRef.current === controller) {
-            onDeviceFallbackControllerRef.current = null;
-            setLocalDownloadPending(false);
-          }
-        });
-    },
-    [attachNativeListeners, enabled, roomId, transition],
-  );
-
-  useEffect(() => {
-    attemptOnDeviceFallbackRef.current = attemptOnDeviceFallback;
-  }, [attemptOnDeviceFallback]);
-
-  useEffect(() => {
-    const retryWhenEnvironmentRecovers = () => {
-      if (
-        !desiredEnabledRef.current ||
-        machineRef.current.status !== "retry_wait" ||
-        startInFlightRef.current
-      ) {
-        return;
-      }
-
-      startRecognitionRef.current("automatic");
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        retryWhenEnvironmentRecovers();
-      }
-    };
-
-    window.addEventListener("online", retryWhenEnvironmentRecovers);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
+    pendingDeliveriesRef.current = [];
+    inFlightDeliveriesRef.current.clear();
+    blockedDeliveriesRef.current.clear();
+    translationsRef.current = [];
+    pendingCommitMetricsRef.current.clear();
+    outboundSequenceRef.current = incomingSequenceRef.current = 0;
+    previousFinalContextRef.current = "";
+    const inFlight = inFlightDeliveriesRef.current;
+    const blocked = blockedDeliveriesRef.current;
     return () => {
-      window.removeEventListener("online", retryWhenEnvironmentRecovers);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      deliveryGenerationRef.current += 1;
+      clearDeliveryTimer();
+      pendingDeliveriesRef.current = [];
+      inFlight.clear();
+      blocked.clear();
     };
-  }, []);
+  }, [roomId, clearDeliveryTimer]);
 
   useEffect(() => {
-    if (previousRoomIdRef.current !== roomId) {
-      previousRoomIdRef.current = roomId;
-      pendingDeliveriesRef.current = [];
-      inFlightDeliveriesRef.current.clear();
-      blockedDeliveriesRef.current.clear();
-      outboundSequenceRef.current = 0;
-      incomingSequenceRef.current = 0;
-      previousFinalContextRef.current = "";
-      translationsRef.current = [];
-      pendingCommitMetricsRef.current.clear();
-      setTranslations([]);
-      setDeliveryIssue(null);
-      resetSessionCursor();
-    }
+    previousFinalContextRef.current = "";
+  }, [language]);
 
-    if (!roomId || !enabled) {
-      startInFlightRef.current = false;
-      clearRecognitionTimers();
-      clearSegmentTimers();
-      clearDeliveryTimer();
-      pendingDeliveriesRef.current = [];
-      inFlightDeliveriesRef.current.clear();
-      blockedDeliveriesRef.current.clear();
-      resetSessionCursor();
-      lastNativeErrorRef.current = null;
-      endDispositionRef.current = "disabled";
-      transition({ type: "disable" });
-      if (listeningRef.current) stopListeningSafely();
-      return;
-    }
-
-    if (!browserSupportsSpeechRecognition) {
-      startInFlightRef.current = false;
-      clearRecognitionTimers();
-      clearSegmentTimers();
-      clearDeliveryTimer();
-      pendingDeliveriesRef.current = [];
-      inFlightDeliveriesRef.current.clear();
-      blockedDeliveriesRef.current.clear();
-      resetSessionCursor();
-      endDispositionRef.current = "disabled";
-      transition({
-        type: "block",
-        message:
-          "Este navegador não oferece reconhecimento de voz para as legendas.",
-        retryable: false,
-      });
-      if (!unsupportedBrowserReportedRef.current) {
-        unsupportedBrowserReportedRef.current = true;
-        void reportSpeechRecognitionDiagnostic({
-          code: "unsupported-browser",
-          locale: localeRef.current,
-          mode: recognitionModeRef.current,
-          retryAttempt: 0,
-          stage: "support",
-        });
-      }
-      if (listeningRef.current) stopListeningSafely();
-      return;
-    }
-    unsupportedBrowserReportedRef.current = false;
-
-    const nextLocale = toSpeechRecognitionLocale(language);
-    const localeChanged = previousLocaleRef.current !== nextLocale;
-    previousLocaleRef.current = nextLocale;
-
-    if (localeChanged) {
-      previousFinalContextRef.current = "";
-
-      if (
-        recognitionModeRef.current === "on-device" &&
-        restoreRemoteSpeechRecognition()
-      ) {
-        recognitionModeRef.current = "remote";
-        attachNativeListeners(SpeechRecognition.getRecognition());
-      }
-
-      if (listeningRef.current) {
-        endDispositionRef.current = "normal";
-        stopListeningSafely();
-        return;
-      }
-    }
-
-    startRecognitionRef.current("automatic");
-  }, [
-    browserSupportsSpeechRecognition,
-    clearRecognitionTimers,
-    clearSegmentTimers,
-    clearDeliveryTimer,
-    enabled,
-    language,
+  const recognition = useLocalSpeech({
     roomId,
-    resetSessionCursor,
-    attachNativeListeners,
-    transition,
-  ]);
-
-  useEffect(() => {
-    sessionFinalTranscriptRef.current = finalTranscript;
-
-    if (
-      !desiredEnabledRef.current ||
-      machineRef.current.status !== "listening"
-    ) {
-      clearSegmentTimers();
-      return;
-    }
-
-    const observedAt = getMonotonicNow();
-    const recognitionBaseline =
-      speechStartedAtRef.current ?? recognitionStartedAtRef.current;
-
-    if (
-      interimTranscript.trim().length > 0 &&
-      !firstInterimMeasuredRef.current
-    ) {
-      firstInterimMeasuredRef.current = true;
-      recordSpeechTranslationMetric({
-        name: "recognition_first_interim",
-        observedAt,
-        ...(recognitionBaseline !== null
-          ? { durationMs: observedAt - recognitionBaseline }
-          : {}),
-      });
-    }
-
-    const cursor = Math.min(sentCursorRef.current, transcript.length);
-    const hasNewText = transcript.slice(cursor).trim().length > 0;
-    if (!hasNewText) return;
-
-    const hasNewFinalResult =
-      finalTranscript.length > 0 &&
-      finalTranscript !== lastObservedFinalRef.current;
-    lastObservedFinalRef.current = finalTranscript;
-
-    if (hasNewFinalResult) {
-      if (!firstFinalMeasuredRef.current) {
-        firstFinalMeasuredRef.current = true;
-        recordSpeechTranslationMetric({
-          name: "recognition_first_final",
-          observedAt,
-          ...(recognitionBaseline !== null
-            ? { durationMs: observedAt - recognitionBaseline }
-            : {}),
-        });
-      }
-      flushBufferRef.current();
-      return;
-    }
-
-    if (continuousTimerRef.current === null) {
-      continuousTimerRef.current = window.setTimeout(() => {
-        continuousTimerRef.current = null;
-        requestFinalizationRef.current();
-      }, SPEECH_CONTINUOUS_FLUSH_MS);
-    }
-
-    if (silenceTimerRef.current !== null) {
-      window.clearTimeout(silenceTimerRef.current);
-    }
-    silenceTimerRef.current = window.setTimeout(() => {
-      silenceTimerRef.current = null;
-      requestFinalizationRef.current();
-    }, SPEECH_SILENCE_TIMEOUT_MS);
-  }, [clearSegmentTimers, finalTranscript, interimTranscript, transcript]);
-
+    locale: toSpeechRecognitionLocale(language),
+    enabled,
+    onText: sendTranscript,
+  });
   useEffect(() => {
     if (!roomId) return;
 
@@ -1205,81 +421,9 @@ export function useSpeechTranslation({
     pendingCommitMetricsRef.current.clear();
   }, [translations]);
 
-  const retryRecognition = useCallback(() => {
-    const canTryBlockedFallback = machineRef.current.status === "blocked";
-    if (
-      (!desiredEnabledRef.current && !canTryBlockedFallback) ||
-      startInFlightRef.current
-    ) {
-      return;
-    }
-
-    const shouldRetryOnDevice =
-      recognitionModeRef.current === "remote" &&
-      (machineRef.current.retryAttempt >= 2 ||
-        lastNativeErrorRef.current === "service-not-allowed" ||
-        lastNativeErrorRef.current === "language-not-supported");
-
-    if (shouldRetryOnDevice) {
-      attemptOnDeviceFallbackRef.current("manual");
-      return;
-    }
-
-    if (machineRef.current.issue?.retryable === false) {
-      if (machineRef.current.status === "blocked") {
-        attemptOnDeviceFallbackRef.current("manual");
-      }
-      return;
-    }
-
-    clearRecognitionTimers();
-    endDispositionRef.current = "normal";
-
-    if (machineRef.current.status === "blocked") {
-      const NativeSpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!NativeSpeechRecognition) return;
-
-      SpeechRecognition.applyPolyfill(NativeSpeechRecognition);
-      attachNativeListeners(SpeechRecognition.getRecognition());
-    }
-
-    startRecognitionRef.current("manual");
-  }, [attachNativeListeners, clearRecognitionTimers]);
-
-  useEffect(
-    () => () => {
-      clearRecognitionTimers();
-      clearSegmentTimers();
-      clearDeliveryTimer();
-      pendingDeliveriesRef.current = [];
-      inFlightDeliveriesRef.current.clear();
-      blockedDeliveriesRef.current.clear();
-      startInFlightRef.current = false;
-      detachNativeListenersRef.current();
-      if (recognitionModeRef.current === "on-device") {
-        restoreRemoteSpeechRecognition();
-        recognitionModeRef.current = "remote";
-      }
-      endDispositionRef.current = "disabled";
-      if (listeningRef.current) stopListeningSafely();
-    },
-    [clearDeliveryTimer, clearRecognitionTimers, clearSegmentTimers],
-  );
-
   return {
     translations,
-    captionIssue:
-      machine.status === "disabled"
-        ? null
-        : localDownloadPending
-          ? {
-              status: "retry_wait" as const,
-              message:
-                "Preparando o idioma para reconhecimento de voz no dispositivo…",
-              retryable: false,
-            }
-          : (machine.issue ?? deliveryIssue),
-    retryRecognition,
+    captionIssue: recognition.captionIssue ?? (enabled ? deliveryIssue : null),
+    retryRecognition: recognition.retryRecognition,
   };
 }

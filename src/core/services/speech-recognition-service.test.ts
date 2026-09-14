@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  applyPolyfill: vi.fn(),
   emit: vi.fn(),
   socket: {
     connected: true,
@@ -9,31 +8,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("react-speech-recognition", () => ({
-  default: {
-    applyPolyfill: mocks.applyPolyfill,
-  },
-}));
-
 vi.mock("@/core/services/socket-service", () => ({
   getSocket: () => mocks.socket,
 }));
 
-import {
-  activateOnDeviceSpeechRecognition,
-  reportSpeechRecognitionDiagnostic,
-  restoreRemoteSpeechRecognition,
-} from "@/core/services/speech-recognition-service";
+import { reportSpeechRecognitionDiagnostic } from "@/core/services/speech-recognition-service";
 
 describe("speech-recognition-service", () => {
   beforeEach(() => {
-    mocks.applyPolyfill.mockReset();
     mocks.socket.connected = true;
     mocks.socket.emit.mockReset();
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    Reflect.deleteProperty(window, "SpeechRecognition");
   });
 
   it("registra a causa local e envia somente diagnóstico técnico ao backend", async () => {
@@ -88,214 +75,5 @@ describe("speech-recognition-service", () => {
 
     expect(console.error).toHaveBeenCalled();
     expect(mocks.socket.emit).not.toHaveBeenCalled();
-  });
-
-  it("ativa o reconhecedor local quando o pacote de idioma já existe", async () => {
-    class NativeRecognition {
-      static available = vi.fn().mockResolvedValue("available");
-      static install = vi.fn();
-      processLocally = false;
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-
-    await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual({
-      status: "activated",
-    });
-
-    expect(NativeRecognition.available).toHaveBeenCalledWith({
-      langs: ["pt-BR"],
-      processLocally: true,
-    });
-    const LocalRecognition = mocks.applyPolyfill.mock.calls[0]?.[0];
-    expect(new LocalRecognition().processLocally).toBe(true);
-  });
-
-  it("instala o pacote disponível antes de ativar o modo local", async () => {
-    class NativeRecognition {
-      static available = vi.fn().mockResolvedValue("downloadable");
-      static install = vi.fn().mockResolvedValue(true);
-      processLocally = false;
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-
-    await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual({
-      status: "activated",
-    });
-    expect(NativeRecognition.install).toHaveBeenCalledWith({
-      langs: ["pt-BR"],
-      processLocally: true,
-    });
-  });
-
-  it("preserva o modo remoto quando a API local não está disponível", async () => {
-    class NativeRecognition {}
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-
-    await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual({
-      status: "unsupported",
-    });
-    expect(mocks.applyPolyfill).not.toHaveBeenCalled();
-  });
-
-  it.each(["unavailable"])(
-    "simula pacote pt-BR com disponibilidade %s sem ativar o fallback",
-    async (availability) => {
-      class NativeRecognition {
-        static available = vi.fn().mockResolvedValue(availability);
-        static install = vi.fn();
-      }
-      Object.defineProperty(window, "SpeechRecognition", {
-        configurable: true,
-        value: NativeRecognition,
-      });
-      await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual(
-        {
-          status: availability,
-        },
-      );
-      expect(mocks.applyPolyfill).not.toHaveBeenCalled();
-      expect(NativeRecognition.install).not.toHaveBeenCalled();
-    },
-  );
-
-  it("aguarda instalação já em andamento e ativa o reconhecimento local", async () => {
-    let finish!: (value: boolean) => void;
-    class NativeRecognition {
-      static available = vi.fn().mockResolvedValue("downloading");
-      static install = vi.fn(
-        () =>
-          new Promise<boolean>((resolve) => {
-            finish = resolve;
-          }),
-      );
-      processLocally = false;
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-    const progress = vi.fn();
-    const activation = activateOnDeviceSpeechRecognition(
-      "pt-BR",
-      undefined,
-      progress,
-    );
-    await Promise.resolve();
-    expect(progress).toHaveBeenCalledOnce();
-    expect(mocks.applyPolyfill).not.toHaveBeenCalled();
-    finish(true);
-    await expect(activation).resolves.toEqual({ status: "activated" });
-    expect(mocks.applyPolyfill).toHaveBeenCalledOnce();
-  });
-
-  it("limita espera por instalação travada e ignora conclusão atrasada", async () => {
-    vi.useFakeTimers();
-    try {
-      let finish!: (value: boolean) => void;
-      class NativeRecognition {
-        static available = vi.fn().mockResolvedValue("downloading");
-        static install = vi.fn(
-          () =>
-            new Promise<boolean>((resolve) => {
-              finish = resolve;
-            }),
-        );
-      }
-      Object.defineProperty(window, "SpeechRecognition", {
-        configurable: true,
-        value: NativeRecognition,
-      });
-      const activation = activateOnDeviceSpeechRecognition("pt-BR");
-      await vi.advanceTimersByTimeAsync(120_000);
-      await expect(activation).resolves.toEqual({
-        status: "failed",
-        errorName: "TimeoutError",
-      });
-      finish(true);
-      await Promise.resolve();
-      expect(mocks.applyPolyfill).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("simula bloqueio da consulta local por política do navegador", async () => {
-    class NativeRecognition {
-      static available = vi
-        .fn()
-        .mockRejectedValue(new DOMException("Blocked", "SecurityError"));
-      static install = vi.fn();
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-    await expect(
-      activateOnDeviceSpeechRecognition("pt-BR"),
-    ).resolves.toMatchObject({
-      status: "failed",
-    });
-  });
-
-  it("ativa pacote instalado mesmo quando install não é exposto", async () => {
-    class NativeRecognition {
-      static available = vi.fn().mockResolvedValue("available");
-      processLocally = false;
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-    await expect(activateOnDeviceSpeechRecognition("pt-BR")).resolves.toEqual({
-      status: "activated",
-    });
-    expect(mocks.applyPolyfill).toHaveBeenCalledOnce();
-  });
-
-  it("restaura explicitamente o construtor remoto do navegador", () => {
-    class NativeRecognition {}
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-
-    expect(restoreRemoteSpeechRecognition()).toBe(true);
-    expect(mocks.applyPolyfill).toHaveBeenCalledWith(NativeRecognition);
-  });
-
-  it("não troca o reconhecedor se a sessão terminar durante o download", async () => {
-    const controller = new AbortController();
-    let finishDownload!: (installed: boolean) => void;
-    class NativeRecognition {
-      static available = vi.fn().mockResolvedValue("downloadable");
-      static install = vi.fn(
-        () =>
-          new Promise<boolean>((resolve) => {
-            finishDownload = resolve;
-          }),
-      );
-    }
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeRecognition,
-    });
-    const activation = activateOnDeviceSpeechRecognition(
-      "pt-BR",
-      controller.signal,
-    );
-    await Promise.resolve();
-    controller.abort();
-    finishDownload(true);
-    await expect(activation).resolves.toEqual({ status: "cancelled" });
-    expect(mocks.applyPolyfill).not.toHaveBeenCalled();
   });
 });

@@ -1,53 +1,26 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 const mocks = vi.hoisted(() => ({
-  recognition: {
-    transcript: "",
-    interimTranscript: "",
-    finalTranscript: "",
-    listening: true,
-    browserSupportsSpeechRecognition: true,
+  onText: null as null | ((text: string) => void),
+  issue: null as null | {
+    status: "blocked";
+    message: string;
+    retryable: boolean;
   },
-  startListening: vi.fn(() => Promise.resolve()),
-  stopListening: vi.fn(() => Promise.resolve()),
-  applyPolyfill: vi.fn(),
-  nativeRecognition: {
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  },
+  retry: vi.fn(),
   sendSpeech: vi.fn(),
   splitSpeech: vi.fn((text: string) => [text.trim()]),
   recordMetric: vi.fn(),
-  reportDiagnostic: vi.fn(() => Promise.resolve()),
-  activateOnDevice: vi.fn(
-    (
-      ...args: [string?, AbortSignal?, (() => void)?]
-    ): Promise<{
-      status:
-        "activated" | "downloading" | "failed" | "unavailable" | "unsupported";
-      errorName?: string;
-    }> => {
-      void args;
-      return Promise.resolve({ status: "unsupported" });
-    },
-  ),
-  restoreRemote: vi.fn(() => true),
   onTranslation: null as null | ((payload: unknown) => void),
   onSocketError: null as null | ((message: string) => void),
   unsubscribe: vi.fn(),
 }));
-
-vi.mock("react-speech-recognition", () => ({
-  default: {
-    startListening: mocks.startListening,
-    stopListening: mocks.stopListening,
-    applyPolyfill: mocks.applyPolyfill,
-    getRecognition: () => mocks.nativeRecognition,
+vi.mock("./use-local-speech", () => ({
+  useLocalSpeech: ({ onText }: { onText: (text: string) => void }) => {
+    mocks.onText = onText;
+    return { captionIssue: mocks.issue, retryRecognition: mocks.retry };
   },
-  useSpeechRecognition: () => mocks.recognition,
 }));
-
 vi.mock("@/core/services/speech-translation-service", () => ({
   recordSpeechTranslationMetric: mocks.recordMetric,
   sendSpeechForTranslation: mocks.sendSpeech,
@@ -56,686 +29,114 @@ vi.mock("@/core/services/speech-translation-service", () => ({
     onTranslation,
     onError,
   }: {
-    onTranslation: (payload: unknown) => void;
-    onError: (message: string) => void;
+    onTranslation: (p: unknown) => void;
+    onError: (m: string) => void;
   }) => {
     mocks.onTranslation = onTranslation;
     mocks.onSocketError = onError;
     return mocks.unsubscribe;
   },
 }));
-
-vi.mock("@/core/services/speech-recognition-service", () => ({
-  activateOnDeviceSpeechRecognition: mocks.activateOnDevice,
-  reportSpeechRecognitionDiagnostic: mocks.reportDiagnostic,
-  restoreRemoteSpeechRecognition: mocks.restoreRemote,
-}));
-
-import {
-  SPEECH_CONTINUOUS_FLUSH_MS,
-  SPEECH_END_GRACE_MS,
-  SPEECH_RETRY_BACKOFF_MS,
-  SPEECH_SILENT_REARM_MS,
-  SPEECH_SILENCE_TIMEOUT_MS,
-  useSpeechTranslation,
-} from "@/core/hooks/use-speech-translation";
-
-type NativeEventName =
-  | "audiostart"
-  | "end"
-  | "error"
-  | "nomatch"
-  | "result"
-  | "speechend"
-  | "speechstart"
-  | "start";
-
-function getNativeHandler(eventName: NativeEventName) {
-  const registrations =
-    mocks.nativeRecognition.addEventListener.mock.calls.filter(
-      ([registeredEvent]) => registeredEvent === eventName,
-    );
-  return registrations.at(-1)?.[1] as ((event?: unknown) => void) | undefined;
-}
-
-function emitNative(eventName: NativeEventName, event?: unknown) {
-  act(() => {
-    getNativeHandler(eventName)?.(event ?? { type: eventName });
-  });
-}
-
-function renderSpeechHook(initialEnabled = true) {
+import { useSpeechTranslation } from "./use-speech-translation";
+function renderSpeechHook() {
   return renderHook(
-    ({ enabled }) =>
-      useSpeechTranslation({
-        roomId: "room-1",
-        language: "PT-BR",
-        enabled,
-      }),
-    { initialProps: { enabled: initialEnabled } },
+    ({ roomId }) =>
+      useSpeechTranslation({ roomId, language: "PT-BR", enabled: true }),
+    { initialProps: { roomId: "room-1" } },
   );
 }
-
-describe("useSpeechTranslation", () => {
+describe("useSpeechTranslation with local transcripts", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mocks.recognition.transcript = "";
-    mocks.recognition.interimTranscript = "";
-    mocks.recognition.finalTranscript = "";
-    mocks.recognition.listening = true;
-    mocks.recognition.browserSupportsSpeechRecognition = true;
-    mocks.startListening.mockClear();
-    mocks.stopListening.mockClear();
-    mocks.applyPolyfill.mockClear();
-    mocks.nativeRecognition.addEventListener.mockClear();
-    mocks.nativeRecognition.removeEventListener.mockClear();
+    vi.clearAllMocks();
+    mocks.issue = null;
     mocks.sendSpeech.mockReset();
-    mocks.sendSpeech.mockImplementation(
-      (
-        payload: {
-          text: string;
-          segmentId?: string;
-          revision?: number;
-          traceId?: string;
-        },
-        options?: {
-          onAcknowledged?: (payload: unknown, acknowledgement: unknown) => void;
-        },
-      ) => {
-        options?.onAcknowledged?.(payload, {
-          result: "ok",
-          segmentId: payload.segmentId,
-          revision: payload.revision,
-          traceId: payload.traceId,
-        });
-        return [payload.text];
-      },
+    mocks.sendSpeech.mockImplementation((payload, options) =>
+      options?.onAcknowledged?.(payload),
     );
-    mocks.splitSpeech.mockClear();
-    mocks.splitSpeech.mockImplementation((text: string) => [text.trim()]);
-    mocks.recordMetric.mockClear();
-    mocks.reportDiagnostic.mockClear();
-    mocks.activateOnDevice.mockClear();
-    mocks.activateOnDevice.mockResolvedValue({ status: "unsupported" });
-    mocks.restoreRemote.mockClear();
-    mocks.restoreRemote.mockReturnValue(true);
-    mocks.onTranslation = null;
-    mocks.onSocketError = null;
-    mocks.unsubscribe.mockReset();
   });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    Reflect.deleteProperty(window, "SpeechRecognition");
-  });
-
-  it("usa sessões não contínuas para controlar o rearm e o backoff", () => {
+  afterEach(() => vi.useRealTimers());
+  it("sends each final phrase with identity, order and previous context", () => {
     renderSpeechHook();
-
-    expect(mocks.startListening).toHaveBeenCalledOnce();
-    expect(mocks.startListening).toHaveBeenCalledWith({
-      continuous: false,
-      language: "pt-BR",
-    });
-  });
-
-  it("envia imediatamente um resultado final e avança o cursor sem repetir texto", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-
-    mocks.recognition.transcript = "Olá";
-    mocks.recognition.finalTranscript = "Olá";
-    rerender({ enabled: true });
-
-    expect(mocks.sendSpeech).toHaveBeenCalledWith(
-      expect.objectContaining({
-        roomId: "room-1",
-        text: "Olá",
-        segmentId: expect.any(String),
-        sequence: 1,
-        revision: 1,
-        status: "final",
-        traceId: expect.any(String),
-        clientSentAt: expect.any(Number),
-        sourceLanguage: "PT-BR",
-      }),
-      expect.any(Object),
-    );
-
-    mocks.recognition.transcript = "Olá mundo";
-    rerender({ enabled: true });
-    act(() => vi.advanceTimersByTime(SPEECH_SILENCE_TIMEOUT_MS));
-    mocks.recognition.finalTranscript = "Olá mundo";
-    rerender({ enabled: true });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-
+    act(() => mocks.onText?.("Olá"));
+    act(() => mocks.onText?.("Tudo bem?"));
     expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
-    expect(mocks.sendSpeech).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        roomId: "room-1",
-        text: "mundo",
-        sequence: 2,
-        previousContext: "Olá",
-      }),
-      expect.any(Object),
-    );
-    expect(mocks.startListening).toHaveBeenCalledTimes(2);
-  });
-
-  it("pede finalização 150 ms depois de speechend sem promover interim", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "Trecho reconhecido";
-    rerender({ enabled: true });
-
-    emitNative("speechend");
-    act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS - 1));
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-
-    act(() => vi.advanceTimersByTime(1));
-    expect(mocks.stopListening).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-  });
-
-  it("usa 400 ms como fallback de silêncio", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "Pausa natural";
-    rerender({ enabled: true });
-
-    act(() => vi.advanceTimersByTime(SPEECH_SILENCE_TIMEOUT_MS - 1));
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-
-    act(() => vi.advanceTimersByTime(1));
-    expect(mocks.stopListening).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-  });
-
-  it("corta fala contínua depois de dois segundos", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "zero";
-    rerender({ enabled: true });
-
-    for (let elapsed = 300; elapsed < 2_000; elapsed += 300) {
-      act(() => vi.advanceTimersByTime(300));
-      mocks.recognition.transcript += ` ${elapsed}`;
-      rerender({ enabled: true });
-    }
-
-    act(() => vi.advanceTimersByTime(SPEECH_CONTINUOUS_FLUSH_MS % 300));
-
-    expect(mocks.stopListening).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_END_GRACE_MS));
-    expect(mocks.sendSpeech).not.toHaveBeenCalled();
-  });
-
-  it("mantém o issue durante a retomada e só o limpa após resultado real", () => {
-    const { result } = renderSpeechHook();
-
-    emitNative("error", { error: "network" });
-    emitNative("end");
-
-    expect(result.current.captionIssue).toEqual({
-      status: "retry_wait",
-      message:
-        "O serviço de reconhecimento de voz está temporariamente indisponível.",
-      retryable: true,
+    expect(mocks.sendSpeech.mock.calls[0][0]).toMatchObject({
+      roomId: "room-1",
+      text: "Olá",
+      sourceLanguage: "PT-BR",
+      sequence: 1,
+      status: "final",
+      revision: 1,
+      segmentId: expect.any(String),
+      traceId: expect.any(String),
     });
-
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    emitNative("start");
-    emitNative("audiostart");
-    expect(result.current.captionIssue?.status).toBe("retry_wait");
-
-    emitNative("result");
-    expect(result.current.captionIssue).toBeNull();
+    expect(mocks.sendSpeech.mock.calls[1][0]).toMatchObject({
+      text: "Tudo bem?",
+      sequence: 2,
+      previousContext: "Olá",
+    });
   });
-
-  it("registra o erro nativo com locale, tentativa e modo do reconhecedor", () => {
+  it("ignores empty model output", () => {
     renderSpeechHook();
-
-    emitNative("error", { error: "network" });
-
-    expect(mocks.reportDiagnostic).toHaveBeenCalledWith({
-      code: "network",
-      locale: "pt-BR",
-      mode: "remote",
-      retryAttempt: 1,
-      stage: "runtime",
-    });
+    act(() => mocks.onText?.("  "));
+    expect(mocks.sendSpeech).not.toHaveBeenCalled();
   });
-
-  it.each(["unsupported", "unavailable", "downloading"] as const)(
-    "reproduz diagnóstico de produção na sexta falha de rede com fallback %s",
-    async (status) => {
-      mocks.activateOnDevice.mockResolvedValue({ status });
-      renderSpeechHook();
-
-      for (let attempt = 1; attempt <= 6; attempt += 1) {
-        emitNative("error", { error: "network" });
-        await act(async () => Promise.resolve());
-        if (attempt < 6) {
-          emitNative("end");
-          await act(async () => {
-            vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[attempt - 1]);
-          });
-          emitNative("start");
-        }
-      }
-
-      expect(mocks.reportDiagnostic).toHaveBeenCalledWith({
-        code: "network",
-        locale: "pt-BR",
-        mode: "remote",
-        retryAttempt: 6,
-        stage: "runtime",
-      });
-      expect(mocks.reportDiagnostic).toHaveBeenLastCalledWith({
-        code: "local-fallback-unavailable",
-        fallbackStatus: status,
-        sourceError: "network",
-        locale: "pt-BR",
-        mode: "remote",
-        retryAttempt: 6,
-        stage: "fallback",
-      });
-      expect(mocks.sendSpeech).not.toHaveBeenCalled();
-    },
-  );
-
-  it("mostra preparo do idioma e ativa local após download sem novo erro remoto", async () => {
-    let finish!: (value: { status: "activated" }) => void;
-    mocks.activateOnDevice.mockImplementation(
-      (_locale, _signal, onDownloading) => {
-        onDownloading?.();
-        return new Promise((resolve) => {
-          finish = resolve;
-        });
-      },
-    );
-    const { result } = renderSpeechHook();
-    emitNative("error", { error: "service-not-allowed" });
-    expect(result.current.captionIssue?.message).toContain(
-      "Preparando o idioma",
-    );
-    expect(result.current.captionIssue?.retryable).toBe(false);
-    const before = mocks.startListening.mock.calls.length;
-    await act(async () => finish({ status: "activated" }));
-    expect(mocks.startListening).toHaveBeenCalledTimes(before + 1);
-    expect(result.current.captionIssue?.message).not.toContain(
-      "Preparando o idioma",
-    );
-    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: "local-fallback-activated",
-        mode: "on-device",
-        sourceError: "service-not-allowed",
-      }),
-    );
-  });
-
-  it("tenta ativar o fallback local após a segunda falha de rede", async () => {
-    mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
-    renderSpeechHook();
-
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    emitNative("start");
-    emitNative("error", { error: "network" });
-
-    await act(async () => Promise.resolve());
-
-    expect(mocks.activateOnDevice).toHaveBeenCalledWith(
-      "pt-BR",
-      expect.any(AbortSignal),
-      expect.any(Function),
-    );
-    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: "local-fallback-activated",
-        mode: "on-device",
-        stage: "fallback",
-      }),
-    );
-  });
-
-  it.each(["service-not-allowed", "language-not-supported"])(
-    "tenta fallback local imediatamente após %s",
-    async (error) => {
-      mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
-      renderSpeechHook();
-
-      emitNative("error", { error });
-      await act(async () => Promise.resolve());
-
-      expect(mocks.activateOnDevice).toHaveBeenCalledWith(
-        "pt-BR",
-        expect.any(AbortSignal),
-        expect.any(Function),
-      );
-      expect(mocks.startListening).toHaveBeenCalledTimes(2);
-    },
-  );
-
-  it("retry manual tenta novamente o fallback local após falhas de rede repetidas", async () => {
-    mocks.activateOnDevice
-      .mockResolvedValueOnce({ status: "failed" })
-      .mockResolvedValueOnce({ status: "activated" });
-    const { result } = renderSpeechHook();
-
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    emitNative("start");
-    emitNative("error", { error: "network" });
-    await act(async () => Promise.resolve());
-
-    act(() => result.current.retryRecognition());
-    await act(async () => Promise.resolve());
-
-    expect(mocks.activateOnDevice).toHaveBeenCalledTimes(2);
-    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "local-fallback-activated" }),
-    );
-  });
-
-  it("retoma imediatamente quando a conexão do navegador volta", () => {
-    renderSpeechHook();
-    emitNative("error", { error: "network" });
-    emitNative("end");
-
-    act(() => window.dispatchEvent(new Event("online")));
-
-    expect(mocks.startListening).toHaveBeenCalledTimes(2);
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    expect(mocks.startListening).toHaveBeenCalledTimes(2);
-  });
-
-  it("retry manual retoma o remoto quando o fallback não está disponível", async () => {
-    const { result } = renderSpeechHook();
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    emitNative("start");
-    emitNative("error", { error: "network" });
-    await act(async () => Promise.resolve());
-    const startsBeforeRetry = mocks.startListening.mock.calls.length;
-    act(() => result.current.retryRecognition());
-    await act(async () => Promise.resolve());
-    expect(mocks.startListening).toHaveBeenCalledTimes(startsBeforeRetry + 1);
-  });
-
-  it("ignora ativação tardia depois de desativar a legenda", async () => {
-    let finishActivation!: (result: { status: "activated" }) => void;
-    mocks.activateOnDevice.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishActivation = resolve;
-        }),
-    );
-    const { rerender } = renderSpeechHook();
-    emitNative("error", { error: "service-not-allowed" });
-    rerender({ enabled: false });
-    await act(async () => finishActivation({ status: "activated" }));
-    expect(mocks.startListening).toHaveBeenCalledTimes(1);
-    expect(mocks.reportDiagnostic).not.toHaveBeenCalledWith(
-      expect.objectContaining({ code: "local-fallback-activated" }),
-    );
-  });
-
-  it.each(["unmount", "room", "language", "recovered"])(
-    "descarta fallback pendente após %s",
-    async (change) => {
-      let finishActivation!: (result: { status: "activated" }) => void;
-      mocks.activateOnDevice.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finishActivation = resolve;
-          }),
-      );
-      const view = renderHook(
-        (props: { roomId: string; language: "PT-BR" | "EN-US" }) =>
-          useSpeechTranslation({ ...props, enabled: true }),
-        {
-          initialProps: {
-            roomId: "room-1",
-            language: "PT-BR" as "PT-BR" | "EN-US",
-          },
-        },
-      );
-      emitNative("error", { error: "service-not-allowed" });
-      if (change === "unmount") view.unmount();
-      if (change === "room")
-        view.rerender({ roomId: "room-2", language: "PT-BR" });
-      if (change === "language")
-        view.rerender({ roomId: "room-1", language: "EN-US" });
-      if (change === "recovered") emitNative("result");
-      const starts = mocks.startListening.mock.calls.length;
-      await act(async () => finishActivation({ status: "activated" }));
-      expect(mocks.startListening).toHaveBeenCalledTimes(starts);
-      expect(mocks.reportDiagnostic).not.toHaveBeenCalledWith(
-        expect.objectContaining({ code: "local-fallback-activated" }),
-      );
-    },
-  );
-
-  it("inicia o modo local mesmo quando um retry remoto está em andamento", async () => {
-    let finishActivation!: (result: { status: "activated" }) => void;
-    mocks.activateOnDevice.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishActivation = resolve;
-        }),
-    );
-    renderSpeechHook();
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[0]));
-    emitNative("start");
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(SPEECH_RETRY_BACKOFF_MS[1]));
-    const starts = mocks.startListening.mock.calls.length;
-    await act(async () => finishActivation({ status: "activated" }));
-    expect(mocks.startListening).toHaveBeenCalledTimes(starts + 1);
-  });
-
-  it("aplica backoff de 1, 2, 4, 8, 16 e 30 segundos", () => {
-    renderSpeechHook();
-    let starts = 1;
-
-    for (const delay of SPEECH_RETRY_BACKOFF_MS) {
-      emitNative("error", { error: "network" });
-      emitNative("end");
-
-      act(() => vi.advanceTimersByTime(delay - 1));
-      expect(mocks.startListening).toHaveBeenCalledTimes(starts);
-
-      act(() => vi.advanceTimersByTime(1));
-      starts += 1;
-      expect(mocks.startListening).toHaveBeenCalledTimes(starts);
-      emitNative("start");
-    }
-
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(30_000));
-    expect(mocks.startListening).toHaveBeenCalledTimes(starts + 1);
-  });
-
-  it("bloqueia retry automático para erro de permissão", () => {
-    const { result } = renderSpeechHook();
-
-    emitNative("error", { error: "not-allowed" });
-    emitNative("end");
-    act(() => vi.advanceTimersByTime(60_000));
-
-    expect(mocks.startListening).toHaveBeenCalledOnce();
-    expect(result.current.captionIssue).toEqual({
-      status: "blocked",
-      message:
-        "O navegador bloqueou o microfone. Libere a permissão para este site.",
-      retryable: true,
-    });
-  });
-
-  it.each(["no-speech", "nomatch"])(
-    "rear­ma silenciosamente 250 ms depois de %s",
-    (eventName) => {
-      const { result } = renderSpeechHook();
-      emitNative("start");
-
-      if (eventName === "nomatch") {
-        emitNative("nomatch");
-      } else {
-        emitNative("error", { error: eventName });
-      }
-      emitNative("end");
-
-      act(() => vi.advanceTimersByTime(SPEECH_SILENT_REARM_MS - 1));
-      expect(mocks.startListening).toHaveBeenCalledOnce();
-      act(() => vi.advanceTimersByTime(1));
-
-      expect(mocks.startListening).toHaveBeenCalledTimes(2);
-      expect(mocks.sendSpeech).not.toHaveBeenCalled();
-      expect(result.current.captionIssue).toBeNull();
-    },
-  );
-
-  it("retry manual recria o reconhecedor bloqueado e inicia exatamente uma vez", () => {
-    const NativeSpeechRecognition = vi.fn();
-    Object.defineProperty(window, "SpeechRecognition", {
-      configurable: true,
-      value: NativeSpeechRecognition,
-    });
-    const { result } = renderSpeechHook();
-    emitNative("error", { error: "not-allowed" });
-    emitNative("end");
-
-    act(() => result.current.retryRecognition());
-    act(() => result.current.retryRecognition());
-
-    expect(mocks.applyPolyfill).toHaveBeenCalledOnce();
-    expect(mocks.applyPolyfill).toHaveBeenCalledWith(NativeSpeechRecognition);
-    expect(mocks.startListening).toHaveBeenCalledTimes(2);
-    expect(mocks.startListening).toHaveBeenLastCalledWith({
-      continuous: false,
-      language: "pt-BR",
-    });
-  });
-
-  it("oferece fallback local manual quando o navegador não expõe reconhecimento remoto", async () => {
-    mocks.recognition.browserSupportsSpeechRecognition = false;
-    mocks.activateOnDevice.mockResolvedValue({ status: "activated" });
-    const { result } = renderSpeechHook();
-
-    act(() => result.current.retryRecognition());
-    await act(async () => Promise.resolve());
-
-    expect(mocks.activateOnDevice).toHaveBeenCalledWith(
-      "pt-BR",
-      expect.any(AbortSignal),
-      expect.any(Function),
-    );
-    expect(mocks.reportDiagnostic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: "local-fallback-activated",
-        mode: "on-device",
-      }),
-    );
-  });
-
-  it("cancela retry e rearm ao desativar ou desmontar", () => {
-    const first = renderSpeechHook();
-    emitNative("error", { error: "network" });
-    emitNative("end");
-
-    first.rerender({ enabled: false });
-    emitNative("start");
-    act(() => vi.advanceTimersByTime(30_000));
-    expect(mocks.startListening).toHaveBeenCalledOnce();
-    expect(first.result.current.captionIssue).toBeNull();
-    first.unmount();
-
-    const second = renderSpeechHook();
-    emitNative("error", { error: "network" });
-    emitNative("end");
-    second.unmount();
-    act(() => vi.advanceTimersByTime(30_000));
-    expect(mocks.startListening).toHaveBeenCalledTimes(2);
-  });
-
-  it("cancela o retry de entrega ao desativar a captura", () => {
-    mocks.sendSpeech.mockImplementation(() => {
-      throw new Error("Socket desconectado");
-    });
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "Trecho final";
-    mocks.recognition.finalTranscript = "Trecho final";
-    rerender({ enabled: true });
-
-    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
-
-    rerender({ enabled: false });
-    act(() => vi.advanceTimersByTime(1_000));
-
-    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
-  });
-
-  it("não inclui o interim posterior ao limite final no envio imediato", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "texto final provisório";
-    mocks.recognition.finalTranscript = "texto final";
-
-    rerender({ enabled: true });
-
-    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
-    expect(mocks.sendSpeech).toHaveBeenCalledWith(
-      expect.objectContaining({
-        roomId: "room-1",
-        text: "texto final",
-        status: "final",
-      }),
-      expect.any(Object),
-    );
-  });
-
-  it("retry de entrega reenvia somente o trecho pendente", () => {
+  it("retries transport with the same segment identity", () => {
     mocks.sendSpeech.mockImplementationOnce(() => {
       throw new Error("Socket desconectado");
     });
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    mocks.recognition.transcript = "final";
-    mocks.recognition.finalTranscript = "final";
-    rerender({ enabled: true });
-
-    mocks.recognition.transcript = "final novo interim";
-    rerender({ enabled: true });
-    act(() => vi.advanceTimersByTime(1_000));
-
+    renderSpeechHook();
+    act(() => mocks.onText?.("Olá"));
+    act(() => vi.advanceTimersByTime(1000));
     expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
-    const firstPayload = mocks.sendSpeech.mock.calls[0]?.[0];
-    const retriedPayload = mocks.sendSpeech.mock.calls[1]?.[0];
-    expect(retriedPayload).toEqual(firstPayload);
+    expect(mocks.sendSpeech.mock.calls[1][0]).toEqual(
+      mocks.sendSpeech.mock.calls[0][0],
+    );
   });
-
+  it("cancels pending retries on unmount", () => {
+    mocks.sendSpeech.mockImplementation(() => {
+      throw new Error("offline");
+    });
+    const { unmount } = renderSpeechHook();
+    act(() => mocks.onText?.("Olá"));
+    unmount();
+    act(() => vi.advanceTimersByTime(5000));
+    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
+  });
+  it("resets sequence/context and fences acknowledgements from old rooms", () => {
+    mocks.sendSpeech.mockImplementation(() => undefined);
+    const { rerender } = renderSpeechHook();
+    act(() => mocks.onText?.("room one"));
+    const [oldPayload, oldCallbacks] = mocks.sendSpeech.mock.calls[0];
+    rerender({ roomId: "room-2" });
+    act(() => mocks.onText?.("room two"));
+    expect(mocks.sendSpeech.mock.calls[1][0]).toMatchObject({
+      roomId: "room-2",
+      sequence: 1,
+    });
+    expect(mocks.sendSpeech.mock.calls[1][0]).not.toHaveProperty(
+      "previousContext",
+    );
+    act(() => oldCallbacks.onAcknowledged(oldPayload));
+    expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
+  });
+  it("preserves capture errors while translations arrive and delegates retry", () => {
+    mocks.issue = {
+      status: "blocked",
+      message: "Modelo indisponível",
+      retryable: true,
+    };
+    const { result } = renderSpeechHook();
+    expect(result.current.captionIssue).toEqual(mocks.issue);
+    act(() => result.current.retryRecognition());
+    expect(mocks.retry).toHaveBeenCalledOnce();
+    expect(Object.keys(result.current).sort()).toEqual([
+      "captionIssue",
+      "retryRecognition",
+      "translations",
+    ]);
+  });
   it("substitui revisões do mesmo segmento e ordena por sequence", () => {
     const { result } = renderSpeechHook();
     const baseTranslation = {
@@ -858,125 +259,5 @@ describe("useSpeechTranslation", () => {
     expect(result.current.translations).toHaveLength(100);
     expect(result.current.translations[0]?.sequence).toBe(6);
     expect(result.current.translations.at(-1)?.sequence).toBe(105);
-  });
-
-  it("reinicia histórico, sequências e contexto ao trocar de sala", () => {
-    const { result, rerender } = renderHook(
-      ({ roomId }) =>
-        useSpeechTranslation({
-          roomId,
-          language: "PT-BR",
-          enabled: true,
-        }),
-      { initialProps: { roomId: "room-1" } },
-    );
-
-    act(() =>
-      mocks.onTranslation?.({
-        roomId: "room-1",
-        fromParticipantId: "participant-2",
-        fromParticipantName: "Maria",
-        originalText: "Hello",
-        translatedText: "Olá",
-        targetLanguage: "PT-BR",
-      }),
-    );
-    expect(result.current.translations).toHaveLength(1);
-
-    rerender({ roomId: "room-2" });
-
-    expect(result.current.translations).toEqual([]);
-    expect(mocks.unsubscribe).toHaveBeenCalled();
-  });
-
-  it("mede primeiro interim, primeiro final, segmentação e commit", () => {
-    const { rerender } = renderSpeechHook();
-    emitNative("start");
-    emitNative("speechstart");
-
-    act(() => vi.advanceTimersByTime(25));
-    mocks.recognition.interimTranscript = "Olá";
-    mocks.recognition.transcript = "Olá";
-    rerender({ enabled: true });
-
-    act(() => vi.advanceTimersByTime(25));
-    mocks.recognition.interimTranscript = "";
-    mocks.recognition.finalTranscript = "Olá";
-    rerender({ enabled: true });
-
-    act(() =>
-      mocks.onTranslation?.({
-        roomId: "room-1",
-        fromParticipantId: "participant-2",
-        fromParticipantName: "Maria",
-        originalText: "Hello",
-        translatedText: "Olá",
-        targetLanguage: "PT-BR",
-        segmentId: "received-1",
-        sequence: 1,
-        revision: 1,
-        status: "final",
-        traceId: "received-trace-1",
-      }),
-    );
-
-    expect(mocks.recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "recognition_first_interim",
-        durationMs: expect.any(Number),
-      }),
-    );
-    expect(mocks.recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "recognition_first_final",
-        durationMs: expect.any(Number),
-      }),
-    );
-    expect(mocks.recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "segment_ready" }),
-    );
-    expect(mocks.recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "commit",
-        segmentId: "received-1",
-      }),
-    );
-  });
-
-  it("mantém somente o contrato público necessário para a UI", () => {
-    const { result } = renderSpeechHook();
-
-    expect(Object.keys(result.current).sort()).toEqual([
-      "captionIssue",
-      "retryRecognition",
-      "translations",
-    ]);
-  });
-
-  it("acumula traduções recebidas sem limpar issue de captura", () => {
-    const { result } = renderSpeechHook();
-    emitNative("error", { error: "network" });
-    const translation = {
-      roomId: "room-1",
-      fromParticipantId: "participant-2",
-      fromParticipantName: "Maria",
-      originalText: "Hello",
-      translatedText: "Olá",
-      targetLanguage: "PT-BR",
-    };
-
-    act(() => mocks.onTranslation?.(translation));
-
-    expect(result.current.translations).toEqual([
-      expect.objectContaining({
-        ...translation,
-        segmentId: "legacy-1",
-        sequence: 1,
-        revision: 1,
-        status: "final",
-        traceId: "legacy-1",
-      }),
-    ]);
-    expect(result.current.captionIssue?.status).toBe("retry_wait");
   });
 });

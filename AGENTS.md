@@ -86,7 +86,7 @@ O foco é um MVP funcional, priorizando clareza de uso, organização por featur
 - Socket.IO Client
 - Lucide Icons
 - shadCn
-- react-speech-recognition
+- Transformers.js com Whisper multilíngue local em Web Worker
 - Zustand
 - date-fns
 

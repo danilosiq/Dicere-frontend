@@ -11,17 +11,26 @@ import { getDefaultSpeechLanguage } from "@/core/utils/speech-recognition-langua
 import { LoaderCircle, UserRound, VideoOff } from "lucide-react";
 import { useState } from "react";
 import { SubtitleCamp } from "./subtitle-camp";
+import { SpeechPrivacyNotice } from "./speech-privacy-notice";
+import { isServerSpeechEnabled } from "@/core/services/server-speech/config";
 
 export function VideoSection({ call }: { call: CallSession }) {
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
+  const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
+  const needsSpeechConsent =
+    isServerSpeechEnabled() && acceptedSpeechRoom !== room?.id;
   const [speechLanguage, setSpeechLanguage] = useState<DeepLTargetLanguage>(
     getDefaultSpeechLanguage,
   );
   const speechTranslation = useSpeechTranslation({
     roomId: room?.id,
     language: speechLanguage,
-    enabled: Boolean(room?.id) && call.microphoneEnabled && !call.isLeaving,
+    enabled:
+      Boolean(room?.id) &&
+      call.microphoneEnabled &&
+      !call.isLeaving &&
+      !needsSpeechConsent,
   });
   const remoteParticipant = room?.participants.find(
     ({ id }) => id !== participant?.id,
@@ -42,6 +51,11 @@ export function VideoSection({ call }: { call: CallSession }) {
   return (
     <Row className="relative min-h-0 flex-1 bg-gray-100 p-4 dark:bg-black">
       <Row className="relative min-w-0 flex-1 overflow-hidden rounded-xl border-2 dark:bg-gray-900">
+        {needsSpeechConsent && room && (
+          <SpeechPrivacyNotice
+            onAccept={() => setAcceptedSpeechRoom(room.id)}
+          />
+        )}
         <SubtitleCamp
           captionIssue={speechTranslation.captionIssue}
           language={speechLanguage}

@@ -15,6 +15,8 @@ import {
 } from "@/core/services/speech-translation-service";
 import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 import { useLocalSpeech, type LocalCaptionIssue } from "./use-local-speech";
+import { useServerSpeech } from "./use-server-speech";
+import { isServerSpeechEnabled } from "@/core/services/server-speech/config";
 
 export const SPEECH_TRANSLATION_HISTORY_LIMIT = 100;
 export const SPEECH_PREVIOUS_CONTEXT_LIMIT = 250;
@@ -352,12 +354,19 @@ export function useSpeechTranslation({
     previousFinalContextRef.current = "";
   }, [language]);
 
-  const recognition = useLocalSpeech({
+  const serverSpeech = isServerSpeechEnabled();
+  const localRecognition = useLocalSpeech({
     roomId,
     locale: toSpeechRecognitionLocale(language),
-    enabled,
+    enabled: enabled && !serverSpeech,
     onText: sendTranscript,
   });
+  const serverRecognition = useServerSpeech({
+    roomId,
+    locale: toSpeechRecognitionLocale(language),
+    enabled: enabled && serverSpeech,
+  });
+  const recognition = serverSpeech ? serverRecognition : localRecognition;
   useEffect(() => {
     if (!roomId) return;
 

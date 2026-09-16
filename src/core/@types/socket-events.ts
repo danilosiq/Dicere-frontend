@@ -1,3 +1,4 @@
+import type { SpeechEvents } from "./server-speech";
 import type {
   ChatMessagesListPayload,
   ChatMessage,
@@ -222,7 +223,7 @@ export type ServerToClientEvents = {
   error: (payload: SocketEventErrorPayload) => void;
 };
 
-export type ClientToServerEvents = {
+export type ClientToServerEvents = SpeechEvents & {
   join_room: (payload: JoinRoomPayload) => void;
   send_message: (payload: SendChatMessagePayload) => void;
   list_messages: (payload: ListChatMessagesPayload) => void;

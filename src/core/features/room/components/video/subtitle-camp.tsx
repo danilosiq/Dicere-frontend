@@ -105,6 +105,8 @@ export function SubtitleCamp({
         {visibleTranslations.map((translation) => (
           <p
             key={`${translation.fromParticipantId}:${translation.segmentId ?? translation.sequence}`}
+            data-speech-segment-id={translation.segmentId}
+            data-speech-participant-id={translation.fromParticipantId}
           >
             <Typography color="white">{translation.translatedText} </Typography>
           </p>

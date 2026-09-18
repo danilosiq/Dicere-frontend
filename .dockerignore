@@ -9,3 +9,5 @@ Dockerfile*
 README.md
 coverage
 *.tsbuildinfo
+.speech-quality-private
+test/speech-browser

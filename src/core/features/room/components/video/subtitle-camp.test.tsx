@@ -34,6 +34,21 @@ const defaultProps = {
 };
 
 describe("SubtitleCamp", () => {
+  it("expõe somente a correlação técnica da legenda visível, sem duplicar o texto original", () => {
+    const translation = {
+      ...makeTranslation(1, "Traduzione"),
+      segmentId: "segment-1",
+    };
+    render(<SubtitleCamp {...defaultProps} translations={[translation]} />);
+    const subtitle =
+      screen.getByLabelText("Legenda traduzida").firstElementChild;
+    expect(subtitle?.getAttribute("data-speech-segment-id")).toBe("segment-1");
+    expect(subtitle?.getAttribute("data-speech-participant-id")).toBe(
+      "participant-2",
+    );
+    expect(subtitle?.outerHTML).not.toContain(translation.originalText);
+  });
+
   it("renderiza somente o seletor e o histórico de traduções", () => {
     render(
       <SubtitleCamp

@@ -30,6 +30,6 @@ printf -v command 'GHCR_USER=%q bash -s -- %q %q %q %q' "$GHCR_USER" "$DEPLOY_IM
 command="IFS= read -r GHCR_TOKEN && export GHCR_TOKEN && $command"
 { printf '%s\n' "$GHCR_TOKEN"; cat scripts/deploy-remote.sh; } |
 ssh -i "$ssh_dir/key" -p "$DEPLOY_PORT" \
-  -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+  -o BatchMode=yes -o ConnectTimeout=15 -o ConnectionAttempts=3 -o StrictHostKeyChecking=yes \
   -o "UserKnownHostsFile=$ssh_dir/known_hosts" \
   "$DEPLOY_USER@$DEPLOY_HOST" "$command"

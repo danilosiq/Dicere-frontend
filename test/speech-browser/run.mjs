@@ -7,6 +7,7 @@ import { createClient, joinClients } from "./room-clients.mjs";
 import { measure } from "./measure.mjs";
 import { runBatch, summarizeOverlap } from "./run-batch.mjs";
 import { cleanup, closeBrowser } from "./cleanup.mjs";
+import { stopOwnedBrowser } from "./browser-process.mjs";
 
 const schema = z
   .object({
@@ -92,9 +93,30 @@ const report = {
     : "normal",
   concurrentSpeakers: simultaneous ? 2 : 1,
   batches: [],
+  transportCaptures: [],
   runs: [],
 };
-let browser, room;
+let browser, browserServer, room;
+const saveTransport =
+  process.env.SPEECH_TEST_CAPTURE_TRANSPORT === "true"
+    ? (sessionId, audio) => {
+        const path = resolve(directory, `transport-${sessionId}.pcm`);
+        try {
+          writeFileSync(path, audio, { mode: 0o600, flag: "wx" });
+        } catch {
+          report.transportCaptureFailed = true;
+          process.exitCode = 1;
+          console.error("PRIVATE_TRANSPORT_WRITE_FAILED");
+          return;
+        }
+        report.transportCaptures.push({
+          sessionId,
+          path,
+          bytes: audio.length,
+          sha256: createHash("sha256").update(audio).digest("hex"),
+        });
+      }
+    : undefined;
 function saveReport() {
   try {
     writeFileSync(output, JSON.stringify(report, null, 2), { mode: 0o600 });
@@ -106,7 +128,8 @@ function saveReport() {
   }
 }
 try {
-  browser = await chromium.launch({
+  browserServer = await chromium.launchServer({
+    host: "127.0.0.1",
     ...(process.env.SPEECH_TEST_CHROME_PATH
       ? { executablePath: process.env.SPEECH_TEST_CHROME_PATH }
       : {}),
@@ -117,10 +140,11 @@ try {
       "--autoplay-policy=no-user-gesture-required",
     ],
   });
+  browser = await chromium.connect(browserServer.wsEndpoint());
   report.browser = await browser.version();
   const clients = await Promise.all([
-    createClient(browser, frontendUrl, frontendProxy),
-    createClient(browser, frontendUrl, frontendProxy),
+    createClient(browser, frontendUrl, frontendProxy, saveTransport),
+    createClient(browser, frontendUrl, frontendProxy, saveTransport),
   ]);
   await joinClients(
     clients,
@@ -196,14 +220,23 @@ try {
       );
       return response.ok;
     },
-    closeBrowser: () => closeBrowser(browser),
+    closeBrowser: () =>
+      closeBrowser(browser, (stage) => console.info("BROWSER_CLEANUP", stage)),
   });
-  Object.assign(report, result);
-  if (!result.cleanupSucceeded || !result.browserClosed) process.exitCode = 1;
+  const stopped = await stopOwnedBrowser(browserServer);
+  Object.assign(report, result, stopped, {
+    browserConnectionClosed: result.browserClosed,
+  });
+  if (
+    !result.cleanupSucceeded ||
+    !result.browserClosed ||
+    !stopped.browserClosed
+  )
+    process.exitCode = 1;
   if (saveReport()) console.info("PRIVATE_EVIDENCE_SAVED", output);
   console.info(
     "ACCEPTANCE_PENDING: corpus, speech-end annotation, translation review and production matrix are separate gates.",
   );
   // Do not keep a remote pilot enabled because a Chromium child is stuck.
-  if (!result.browserClosed) process.exit(1);
+  if (!stopped.browserClosed) process.exit(1);
 }

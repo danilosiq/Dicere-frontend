@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { installMicrophoneFixture } from "./microphone-fixture.mjs";
+import { createTransportCapture } from "./transport-capture.mjs";
 
-export async function createClient(browser, frontendUrl, frontendProxy) {
+export async function createClient(
+  browser,
+  frontendUrl,
+  frontendProxy,
+  saveTransport,
+) {
   const context = await browser.newContext({
     locale: "pt-BR",
     permissions: ["camera", "microphone"],
@@ -34,7 +40,11 @@ export async function createClient(browser, frontendUrl, frontendProxy) {
     if (typeof detail?.code === "string" && /^STT_[A-Z_]+$/.test(detail.code))
       client.errors.push(detail.code);
   });
-  page.on("websocket", (socket) =>
+  page.on("websocket", (socket) => {
+    if (saveTransport) {
+      const capture = createTransportCapture(saveTransport);
+      socket.on("framesent", ({ payload }) => capture(payload));
+    }
     socket.on("framereceived", ({ payload }) => {
       if (typeof payload !== "string" || !payload.startsWith("42")) return;
       try {
@@ -44,8 +54,8 @@ export async function createClient(browser, frontendUrl, frontendProxy) {
       } catch {
         // Binary audio frames are not events or logs.
       }
-    }),
-  );
+    });
+  });
   return client;
 }
 

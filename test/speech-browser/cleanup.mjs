@@ -1,9 +1,15 @@
-export async function closeBrowser(browser) {
+export async function closeBrowser(browser, onStage = () => {}) {
   if (!browser) return;
+  onStage("contexts-closing");
   await Promise.allSettled(
-    browser.contexts().map((context) => context.close()),
+    browser.contexts().map(async (context, index) => {
+      await context.close();
+      onStage(`context-${index}-closed`);
+    }),
   );
+  onStage("browser-closing");
   await browser.close();
+  onStage("browser-closed");
 }
 
 async function bounded(action, timeoutMs) {

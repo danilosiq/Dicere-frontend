@@ -58,9 +58,31 @@ falas concorrentes, registra o desvio entre os inícios e a sobreposição míni
 considerando a incerteza dos relógios. Ausência de sobreposição reprova o ensaio.
 As duas tentativas terminam antes do cleanup, mesmo quando uma falha.
 O relatório é salvo antes de encerrar os recursos. A sala exclusiva é fechada
-antes do navegador; um Chrome que não encerra dentro de 10 s reprova o executor,
-que termina com erro para permitir ao controlador externo retirar o piloto.
+antes do navegador. O executor inicia um BrowserServer restrito a loopback e
+mantém a referência ao processo que criou; não procura nem encerra Chrome do
+usuário. Após fechar contextos/conexão, tenta encerrar esse processo com prazo
+de 10 s e, se necessário, força somente seu encerramento, também com prazo.
+O relatório distingue `browserConnectionClosed`, `browserClosed` e
+`browserForcedStop`. Falha no fechamento da conexão ou processo ainda vivo
+reprova o executor; um encerramento forçado bem-sucedido fica explícito, não é
+prova de que o travamento original do Chrome tenha sido corrigido.
 Repetir a mesma gravação em dois participantes testa concorrência, não amplia
 o corpus humano. Silêncio, troca de sala/idioma, reconexão, mute e carga
 sustentada precisam ampliar a matriz; não marcar a história 10 concluída só por
 este executor passar.
+
+## Diagnóstico privado do áudio transportado
+
+`SPEECH_TEST_CAPTURE_TRANSPORT=true` habilita, somente neste executor, a captura
+do PCM enviado por WebSocket nas sessões do teste. Por padrão ela está desligada;
+não adiciona gravação de áudio à aplicação. Use apenas com a gravação consentida
+definida no caso privado. O observador verifica ids, ordem, tamanho e conclusão
+do trecho; não salva sessões incompletas ou misturadas a outro evento binário.
+Limites: 8 sessões por socket, 384000 bytes por sessão, 16000 bytes por bloco.
+
+Arquivos `transport-<id>.pcm` ficam no diretório privado com permissão 0600 e sem
+sobrescrever gravações existentes. Relatório registra caminho, hash e tamanho,
+sem imprimir conteúdo. Falha de escrita reprova o teste, preservando o cleanup.
+Não enviar esses arquivos/relatórios ao GitHub, CI ou Notion. Servem para comparar
+a saída da captura/segmentação com o áudio original e repetir exatamente a
+entrada do modelo, distinguindo erro de STT de erro posterior de tradução.

@@ -38,7 +38,29 @@ contém apenas métricas técnicas. Não publicar estes relatórios como artefat
 de CI. O script nunca declara aceite: revisão semântica, corpus com 20 áudios,
 Windows, simultaneidade/carga e produção continuam gates independentes.
 
-Esta primeira versão cobre duas sessões e quatro falas sequenciais com retry
-manual entre tentativas. Silêncio, troca de sala/idioma, reconexão, mute e carga
+## Piloto com backend real de produção
+
+É possível servir o bundle candidato local sob a origem pública somente nos
+dois navegadores de teste com `SPEECH_TEST_FRONTEND_PROXY=http://localhost:3104`.
+O relatório declara esse modo explicitamente: o bundle não é o frontend público
+liberado aos usuários. Nenhuma rota da API, STT ou DeepL é interceptada/simulada.
+Buildar o candidato com as URLs reais da API e a flag de voz habilitada.
+
+`SPEECH_TEST_EXISTING_ROOM_FILE` aceita um JSON privado de sala criada exclusivamente
+para teste, com `ownedTestRoom: true`, `roomId`, `code`, `title`, `adminParticipantId`
+e `password`. O executor entra pela UI e fecha apenas essa sala ao terminar.
+A liberação da sala no backend e sua desativação devem ser feitas pelo operador,
+inclusive quando o navegador falhar; o executor não altera configuração de servidor.
+
+O modo padrão cobre duas sessões e quatro falas sequenciais com retry
+manual entre tentativas. `SPEECH_TEST_SIMULTANEOUS=true` executa dois pares de
+falas concorrentes, registra o desvio entre os inícios e a sobreposição mínima
+considerando a incerteza dos relógios. Ausência de sobreposição reprova o ensaio.
+As duas tentativas terminam antes do cleanup, mesmo quando uma falha.
+O relatório é salvo antes de encerrar os recursos. A sala exclusiva é fechada
+antes do navegador; um Chrome que não encerra dentro de 10 s reprova o executor,
+que termina com erro para permitir ao controlador externo retirar o piloto.
+Repetir a mesma gravação em dois participantes testa concorrência, não amplia
+o corpus humano. Silêncio, troca de sala/idioma, reconexão, mute e carga
 sustentada precisam ampliar a matriz; não marcar a história 10 concluída só por
 este executor passar.

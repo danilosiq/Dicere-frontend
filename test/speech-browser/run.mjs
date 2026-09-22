@@ -5,6 +5,8 @@ import { resolve, dirname } from "node:path";
 import { z } from "zod";
 import { createClient, joinClients } from "./room-clients.mjs";
 import { measure } from "./measure.mjs";
+import { runBatch, summarizeOverlap } from "./run-batch.mjs";
+import { cleanup } from "./cleanup.mjs";
 
 const schema = z
   .object({
@@ -36,6 +38,31 @@ const frontendUrl = new URL(
 const apiUrl = new URL(
   process.env.SPEECH_TEST_API_URL || "http://localhost:3344",
 ).origin;
+const frontendProxy = process.env.SPEECH_TEST_FRONTEND_PROXY
+  ? new URL(process.env.SPEECH_TEST_FRONTEND_PROXY).origin
+  : undefined;
+if (
+  frontendProxy &&
+  !["localhost", "127.0.0.1"].includes(new URL(frontendProxy).hostname)
+)
+  throw new Error("FRONTEND_PROXY_MUST_BE_LOCAL");
+const existingRoom = process.env.SPEECH_TEST_EXISTING_ROOM_FILE
+  ? z
+      .object({
+        ownedTestRoom: z.literal(true),
+        roomId: z.string().uuid(),
+        code: z.string().min(1),
+        title: z.string(),
+        adminParticipantId: z.string().uuid(),
+        password: z.string().min(1),
+      })
+      .strict()
+      .parse(
+        JSON.parse(
+          readFileSync(process.env.SPEECH_TEST_EXISTING_ROOM_FILE, "utf8"),
+        ),
+      )
+  : undefined;
 for (const url of [frontendUrl, apiUrl]) {
   if (
     !["localhost", "127.0.0.1"].includes(new URL(url).hostname) &&
@@ -46,6 +73,7 @@ for (const url of [frontendUrl, apiUrl]) {
 const directory = resolve(".speech-quality-private");
 mkdirSync(directory, { recursive: true, mode: 0o700 });
 const output = resolve(directory, `browser-${randomUUID()}.json`);
+const simultaneous = process.env.SPEECH_TEST_SIMULTANEOUS === "true";
 const report = {
   scope: "browser-end-to-end",
   mocked: false,
@@ -59,9 +87,24 @@ const report = {
   audioSamples: pcm.length / 2,
   frontendUrl,
   apiUrl,
+  frontendDelivery: frontendProxy
+    ? "local-candidate-proxied-under-real-origin"
+    : "normal",
+  concurrentSpeakers: simultaneous ? 2 : 1,
+  batches: [],
   runs: [],
 };
 let browser, room;
+function saveReport() {
+  try {
+    writeFileSync(output, JSON.stringify(report, null, 2), { mode: 0o600 });
+    return true;
+  } catch {
+    console.error("PRIVATE_EVIDENCE_WRITE_FAILED");
+    process.exitCode = 1;
+    return false;
+  }
+}
 try {
   browser = await chromium.launch({
     ...(process.env.SPEECH_TEST_CHROME_PATH
@@ -76,23 +119,49 @@ try {
   });
   report.browser = await browser.version();
   const clients = await Promise.all([
-    createClient(browser),
-    createClient(browser),
+    createClient(browser, frontendUrl, frontendProxy),
+    createClient(browser, frontendUrl, frontendProxy),
   ]);
-  await joinClients(clients, frontendUrl, (created) => {
-    room = created;
-  });
+  await joinClients(
+    clients,
+    frontendUrl,
+    (created) => {
+      room = created;
+    },
+    existingRoom,
+  );
   for (let iteration = 0; iteration < 2; iteration++) {
-    for (const sender of [0, 1]) {
-      const run = await measure(
+    const results = await runBatch(simultaneous, (sender) =>
+      measure(
         clients,
         sender,
         pcm.toString("base64"),
         config.reference,
         config.earliestSpeechEndSample,
-      );
+      ),
+    );
+    const successful = results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+    const overlap = summarizeOverlap(successful);
+    report.batches.push({ iteration, ...overlap });
+    if (simultaneous && (!overlap || overlap.minimumOverlapMs <= 0))
+      process.exitCode = 1;
+    for (const result of results) {
+      if (result.status === "rejected") {
+        report.runs.push({
+          iteration,
+          failure:
+            result.reason instanceof Error ? result.reason.name : "TEST_FAILED",
+          exactWords: false,
+          withinBudget: false,
+        });
+        process.exitCode = 1;
+        continue;
+      }
+      const run = result.value;
       report.runs.push({ iteration, ...run });
-      writeFileSync(output, JSON.stringify(report, null, 2), { mode: 0o600 });
+      if (!saveReport()) throw new Error("PRIVATE_EVIDENCE_WRITE_FAILED");
       console.info(
         JSON.stringify({
           iteration,
@@ -101,6 +170,7 @@ try {
           upperBoundMs: run.upperBoundMs,
           withinBudget: run.withinBudget,
           recovered: run.recovered,
+          minimumOverlapMs: overlap?.minimumOverlapMs,
         }),
       );
     }
@@ -116,18 +186,24 @@ try {
   console.error("SPEECH_BROWSER_TEST_FAILED", report.failure);
   process.exitCode = 1;
 } finally {
-  await browser?.close();
-  if (room?.roomId) {
-    const response = await fetch(
-      `${apiUrl}/room/${encodeURIComponent(room.roomId)}`,
-      { method: "PATCH" },
-    ).catch(() => null);
-    report.cleanupSucceeded = response?.ok ?? false;
-    if (!report.cleanupSucceeded) process.exitCode = 1;
-  }
-  writeFileSync(output, JSON.stringify(report, null, 2), { mode: 0o600 });
-  console.info("PRIVATE_EVIDENCE_SAVED", output);
+  saveReport();
+  const result = await cleanup({
+    closeRoom: async () => {
+      if (!room?.roomId) return true;
+      const response = await fetch(
+        `${apiUrl}/room/${encodeURIComponent(room.roomId)}`,
+        { method: "PATCH", signal: AbortSignal.timeout(5000) },
+      );
+      return response.ok;
+    },
+    closeBrowser: () => browser?.close(),
+  });
+  Object.assign(report, result);
+  if (!result.cleanupSucceeded || !result.browserClosed) process.exitCode = 1;
+  if (saveReport()) console.info("PRIVATE_EVIDENCE_SAVED", output);
   console.info(
     "ACCEPTANCE_PENDING: corpus, speech-end annotation, translation review and production matrix are separate gates.",
   );
+  // Do not keep a remote pilot enabled because a Chromium child is stuck.
+  if (!result.browserClosed) process.exit(1);
 }

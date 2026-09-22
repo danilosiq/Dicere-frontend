@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createClient, joinClients } from "./room-clients.mjs";
 import { measure } from "./measure.mjs";
 import { runBatch, summarizeOverlap } from "./run-batch.mjs";
-import { cleanup } from "./cleanup.mjs";
+import { cleanup, closeBrowser } from "./cleanup.mjs";
 
 const schema = z
   .object({
@@ -196,7 +196,7 @@ try {
       );
       return response.ok;
     },
-    closeBrowser: () => browser?.close(),
+    closeBrowser: () => closeBrowser(browser),
   });
   Object.assign(report, result);
   if (!result.cleanupSucceeded || !result.browserClosed) process.exitCode = 1;

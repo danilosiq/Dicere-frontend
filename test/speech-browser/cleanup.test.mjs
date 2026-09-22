@@ -1,5 +1,22 @@
 import { expect, it, vi } from "vitest";
-import { cleanup } from "./cleanup.mjs";
+import { cleanup, closeBrowser } from "./cleanup.mjs";
+
+it("closes explicit browser contexts before the browser process", async () => {
+  const events = [];
+  await closeBrowser({
+    contexts: () => [
+      {
+        close: async () => {
+          events.push("context");
+        },
+      },
+    ],
+    close: async () => {
+      events.push("browser");
+    },
+  });
+  expect(events).toEqual(["context", "browser"]);
+});
 
 it("closes the owned room before a browser that never closes", async () => {
   const events = [];

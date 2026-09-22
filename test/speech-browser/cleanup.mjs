@@ -1,3 +1,11 @@
+export async function closeBrowser(browser) {
+  if (!browser) return;
+  await Promise.allSettled(
+    browser.contexts().map((context) => context.close()),
+  );
+  await browser.close();
+}
+
 async function bounded(action, timeoutMs) {
   let timer;
   try {

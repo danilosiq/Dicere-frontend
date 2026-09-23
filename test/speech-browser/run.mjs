@@ -8,6 +8,8 @@ import { measure } from "./measure.mjs";
 import { runBatch, summarizeOverlap } from "./run-batch.mjs";
 import { cleanup, closeBrowser } from "./cleanup.mjs";
 import { stopOwnedBrowser } from "./browser-process.mjs";
+import { evaluateReport } from "./evaluate-report.mjs";
+import { armShutdownWatchdog } from "./shutdown-watchdog.mjs";
 
 const schema = z
   .object({
@@ -253,16 +255,23 @@ try {
   Object.assign(report, result, stopped, {
     browserConnectionClosed: result.browserClosed,
   });
-  if (
-    !result.cleanupSucceeded ||
-    !result.browserClosed ||
-    !stopped.browserClosed
-  )
-    process.exitCode = 1;
+  report.executionPassed = evaluateReport(
+    report,
+    process.exitCode ?? 0,
+  ).executionPassed;
+  if (!report.executionPassed) process.exitCode = 1;
   if (saveReport()) console.info("PRIVATE_EVIDENCE_SAVED", output);
   console.info(
     "ACCEPTANCE_PENDING: corpus, speech-end annotation, translation review and production matrix are separate gates.",
   );
   // Do not keep a remote pilot enabled because a Chromium child is stuck.
   if (!stopped.browserClosed) process.exit(1);
+  armShutdownWatchdog((resources) => {
+    report.failure = "EXECUTOR_SHUTDOWN_TIMEOUT";
+    report.executionPassed = false;
+    report.remainingResources = resources;
+    saveReport();
+    console.error("EXECUTOR_SHUTDOWN_TIMEOUT");
+    process.exit(1);
+  });
 }

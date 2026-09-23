@@ -86,3 +86,22 @@ sem imprimir conteúdo. Falha de escrita reprova o teste, preservando o cleanup.
 Não enviar esses arquivos/relatórios ao GitHub, CI ou Notion. Servem para comparar
 a saída da captura/segmentação com o áudio original e repetir exatamente a
 entrada do modelo, distinguindo erro de STT de erro posterior de tradução.
+
+## Interpretar a matriz sem esconder falhas
+
+`evaluate-report.mjs` separa transcrição/latência, execução técnica e aceite
+humano. Saída 124 (timeout), encerramento forçado, erro do navegador ou limpeza
+incompleta reprovam a execução, mesmo se a legenda estiver correta. A revisão
+humana do fim da fala e das traduções permanece um gate independente.
+
+Ao agregar tentativas, use `summarizeAttempts` com todos os relatórios e códigos
+de saída reais. Não substitua uma falha pela repetição bem-sucedida do idioma.
+Informe tentativas aprovadas/reprovadas e idiomas com pelo menos um sucesso
+separadamente. O teste mantém `accepted: false` porque um único áudio não cobre
+toda a matriz de homologação da sprint.
+
+Depois do cleanup, um watchdog não bloqueante dá 5 s para o processo Node sair.
+Se algum recurso o mantiver vivo, salva `EXECUTOR_SHUTDOWN_TIMEOUT` e reprova
+a execução antes de encerrar. Registra somente tipos/contagens de recursos,
+sem endereços ou conteúdo. Esse limite impede travar o controlador do piloto;
+não transforma um encerramento problemático em sucesso.

@@ -62,7 +62,7 @@ export async function measure(
   // Retain late arrivals and failures, not just the first successful subtitle.
   await source.page.waitForTimeout(scheduled.durationMs + 6500);
   const run = {
-    target: receiver === 0 ? "IT" : "ES",
+    target: process.env.SPEECH_TEST_TARGET_LANGUAGE || "unknown",
     recovered,
     translations: target.translations.slice(before),
     rendered: target.rendered.slice(beforeRender),

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The private browser pilot proxies dicere.cloud to the local candidate.
+  // This is read only by Next dev; production origin policy is unchanged.
+  allowedDevOrigins: ["dicere.cloud"],
   async redirects() {
     return [
       { source: "/favicon.ico", destination: "/favicon.svg", permanent: true },

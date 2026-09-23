@@ -1,8 +1,8 @@
 // Wait for both attempts even after a rejection, before closing their browsers.
-export async function runBatch(simultaneous, measure) {
-  if (simultaneous) return Promise.allSettled([0, 1].map(measure));
+export async function runBatch(simultaneous, measure, senders = [0, 1]) {
+  if (simultaneous) return Promise.allSettled(senders.map(measure));
   const results = [];
-  for (const sender of [0, 1]) {
+  for (const sender of senders) {
     results.push(...(await Promise.allSettled([measure(sender)])));
   }
   return results;

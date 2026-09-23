@@ -56,6 +56,7 @@ const existingRoom = process.env.SPEECH_TEST_EXISTING_ROOM_FILE
         title: z.string(),
         adminParticipantId: z.string().uuid(),
         password: z.string().min(1),
+        targetLanguage: z.string().min(2).optional(),
       })
       .strict()
       .parse(
@@ -75,6 +76,14 @@ const directory = resolve(".speech-quality-private");
 mkdirSync(directory, { recursive: true, mode: 0o700 });
 const output = resolve(directory, `browser-${randomUUID()}.json`);
 const simultaneous = process.env.SPEECH_TEST_SIMULTANEOUS === "true";
+const targetLanguage = process.env.SPEECH_TEST_TARGET_LANGUAGE || existingRoom?.targetLanguage || "IT";
+const iterations = Number.parseInt(process.env.SPEECH_TEST_ITERATIONS || "2", 10);
+const senders = (process.env.SPEECH_TEST_SENDERS || "0,1")
+  .split(",")
+  .map((value) => Number.parseInt(value, 10))
+  .filter((value) => value === 0 || value === 1);
+if (!Number.isInteger(iterations) || iterations < 1 || iterations > 2 || !senders.length)
+  throw new Error("INVALID_SPEECH_TEST_MATRIX");
 const report = {
   scope: "browser-end-to-end",
   mocked: false,
@@ -92,6 +101,7 @@ const report = {
     ? "local-candidate-proxied-under-real-origin"
     : "normal",
   concurrentSpeakers: simultaneous ? 2 : 1,
+  targetLanguage,
   batches: [],
   transportCaptures: [],
   runs: [],
@@ -154,7 +164,7 @@ try {
     },
     existingRoom,
   );
-  for (let iteration = 0; iteration < 2; iteration++) {
+  for (let iteration = 0; iteration < iterations; iteration++) {
     const results = await runBatch(simultaneous, (sender) =>
       measure(
         clients,
@@ -163,7 +173,7 @@ try {
         config.reference,
         config.earliestSpeechEndSample,
       ),
-    );
+    senders);
     const successful = results
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value);
@@ -207,6 +217,7 @@ try {
     process.exitCode = 1;
 } catch (error) {
   report.failure = error instanceof Error ? error.name : "TEST_FAILED";
+  report.failureMessage = error instanceof Error ? error.message : String(error);
   console.error("SPEECH_BROWSER_TEST_FAILED", report.failure);
   process.exitCode = 1;
 } finally {

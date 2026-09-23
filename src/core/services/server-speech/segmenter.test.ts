@@ -15,10 +15,13 @@ describe("StreamingSegmenter", () => {
     expect(chunk).not.toHaveBeenCalled();
     segmenter.push(voice());
     expect(start).toHaveBeenCalledOnce();
-    expect(chunk).toHaveBeenCalledTimes(3);
+    expect(chunk).toHaveBeenCalledTimes(2);
     expect(finish).not.toHaveBeenCalled();
     for (let i = 0; i < 5; i++) segmenter.push(silence());
     expect(finish).not.toHaveBeenCalled();
+    segmenter.push(silence());
+    expect(finish).not.toHaveBeenCalled();
+    // Sliding energy observes up to 16 ms beyond the last non-zero sample.
     segmenter.push(silence());
     expect(finish).toHaveBeenCalledOnce();
   });

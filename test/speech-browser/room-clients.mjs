@@ -105,19 +105,20 @@ export async function joinClients(
     }, existingRoom);
     stage("admin-goto");
     await first.goto(frontendUrl);
-    await first.getByRole("button", { name: "Entrar na sala", exact: true }).click();
+    await first
+      .getByRole("button", { name: "Entrar na sala", exact: true })
+      .click();
     await first.waitForTimeout(500);
     stage(`admin-url:${await first.url()}`);
     stage(`admin-inputs:${await first.locator("input").count()}`);
     await first.getByLabel("Código da sala").fill(existingRoom.code);
-    await first.getByLabel("Seu nome").fill(`Quality ${existingRoom.targetLanguage ?? "IT"}`);
+    await first
+      .getByLabel("Seu nome")
+      .fill(`Quality ${existingRoom.targetLanguage ?? "IT"}`);
     await first
       .getByRole("button", { name: "Selecionar idioma", exact: true })
       .click();
-    await languageOption(
-      first,
-      existingRoom.targetLanguage ?? "IT",
-    ).click();
+    await languageOption(first, existingRoom.targetLanguage ?? "IT").click();
     stage("admin-password");
     await first.getByLabel(/^Senha/).fill(password);
     stage("admin-confirm");
@@ -132,7 +133,9 @@ export async function joinClients(
     await enterDetails(
       first,
       `Quality ${existingRoom?.targetLanguage ?? process.env.SPEECH_TEST_TARGET_LANGUAGE ?? "IT"}`,
-      existingRoom?.targetLanguage ?? process.env.SPEECH_TEST_TARGET_LANGUAGE ?? "IT",
+      existingRoom?.targetLanguage ??
+        process.env.SPEECH_TEST_TARGET_LANGUAGE ??
+        "IT",
       password,
     );
     const created = first.waitForResponse(
@@ -147,9 +150,14 @@ export async function joinClients(
   stage("admin-room-ready");
   await first.waitForURL("**/room/*");
   stage("guest-navigation");
-  const language = existingRoom?.targetLanguage ?? process.env.SPEECH_TEST_TARGET_LANGUAGE ?? "IT";
+  const language =
+    existingRoom?.targetLanguage ??
+    process.env.SPEECH_TEST_TARGET_LANGUAGE ??
+    "IT";
   await second.goto(frontendUrl);
-  await second.getByRole("button", { name: "Entrar na sala", exact: true }).click();
+  await second
+    .getByRole("button", { name: "Entrar na sala", exact: true })
+    .click();
   await second.waitForTimeout(500);
   await second.getByLabel("Código da sala").fill(room.code);
   await enterDetails(second, `Quality ${language} Guest`, language, password);
@@ -158,7 +166,13 @@ export async function joinClients(
   try {
     await second.waitForURL("**/room/*");
   } catch (error) {
-    console.error("BROWSER_GUEST_JOIN_FAILED", await second.locator("body").innerText().catch(() => ""));
+    console.error(
+      "BROWSER_GUEST_JOIN_FAILED",
+      await second
+        .locator("body")
+        .innerText()
+        .catch(() => ""),
+    );
     throw error;
   }
   stage("guest-room-ready");
@@ -172,7 +186,13 @@ export async function joinClients(
         })
         .click();
     } catch (error) {
-      console.error("BROWSER_SPEECH_CONSENT_FAILED", await page.locator("body").innerText().catch(() => ""));
+      console.error(
+        "BROWSER_SPEECH_CONSENT_FAILED",
+        await page
+          .locator("body")
+          .innerText()
+          .catch(() => ""),
+      );
       throw error;
     }
     await page.waitForFunction(() => !!window.dicereFixture);

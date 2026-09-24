@@ -66,6 +66,12 @@ O relatório distingue `browserConnectionClosed`, `browserClosed` e
 `browserForcedStop`. Falha no fechamento da conexão ou processo ainda vivo
 reprova o executor; um encerramento forçado bem-sucedido fica explícito, não é
 prova de que o travamento original do Chrome tenha sido corrigido.
+Antes de fechar os contextos, o executor encerra explicitamente todos os
+AudioContexts sintéticos que criou (inclusive os substituídos por retry),
+interrompe tracks/fontes, desconecta nós e o observador de legendas. Fontes
+terminadas são desconectadas imediatamente. Falha nessa limpeza reprova o
+executor, mas não impede a tentativa de fechar contexto e navegador. Essa
+limpeza é exclusiva do teste, não altera o microfone da aplicação pública.
 Repetir a mesma gravação em dois participantes testa concorrência, não amplia
 o corpus humano. Silêncio, troca de sala/idioma, reconexão, mute e carga
 sustentada precisam ampliar a matriz; não marcar a história 10 concluída só por

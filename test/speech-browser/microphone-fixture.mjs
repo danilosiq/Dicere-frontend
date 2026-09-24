@@ -1,5 +1,7 @@
 // Only replaces the microphone input. STT, Socket.IO and DeepL remain real.
 export function installMicrophoneFixture() {
+  const fixtures = new Set();
+  let observer;
   const native = navigator.mediaDevices.getUserMedia.bind(
     navigator.mediaDevices,
   );
@@ -9,11 +11,36 @@ export function installMicrophoneFixture() {
     const context = new AudioContext({ sampleRate: 16000 });
     await context.resume();
     const destination = context.createMediaStreamDestination();
-    window.dicereFixture = { context, destination };
+    window.dicereFixture = { context, destination, sources: new Set() };
+    fixtures.add(window.dicereFixture);
     return destination.stream;
   };
+  window.disposeDicereFixture = async () => {
+    navigator.mediaDevices.getUserMedia = native;
+    observer?.disconnect();
+    const owned = [...fixtures];
+    fixtures.clear();
+    window.dicereFixture = undefined;
+    await Promise.all(
+      owned.map(async ({ context, destination, sources }) => {
+        for (const source of sources) {
+          source.onended = null;
+          try {
+            source.stop();
+          } catch {
+            /* Already ended. */
+          }
+          source.disconnect();
+        }
+        sources.clear();
+        destination.stream.getTracks().forEach((track) => track.stop());
+        destination.disconnect();
+        await context.close();
+      }),
+    );
+  };
   window.playDicereFixture = (encoded) => {
-    const { context, destination } = window.dicereFixture;
+    const { context, destination, sources } = window.dicereFixture;
     const bytes = Uint8Array.from(atob(encoded), (value) =>
       value.charCodeAt(0),
     );
@@ -23,6 +50,11 @@ export function installMicrophoneFixture() {
     for (let i = 0; i < channel.length; i++)
       channel[i] = view.getInt16(i * 2, true) / 32768;
     const source = context.createBufferSource();
+    sources.add(source);
+    source.onended = () => {
+      source.disconnect();
+      sources.delete(source);
+    };
     source.buffer = buffer;
     source.connect(destination);
     const before = performance.now();
@@ -41,7 +73,7 @@ export function installMicrophoneFixture() {
   };
   window.addEventListener("DOMContentLoaded", () => {
     const seen = new Set();
-    new MutationObserver(() => {
+    observer = new MutationObserver(() => {
       const feed = document.querySelector('[aria-label="Legenda traduzida"]');
       for (const item of feed?.children || []) {
         const id = item.dataset.speechSegmentId;
@@ -57,7 +89,8 @@ export function installMicrophoneFixture() {
           ),
         );
       }
-    }).observe(document.documentElement, {
+    });
+    observer.observe(document.documentElement, {
       subtree: true,
       childList: true,
       characterData: true,

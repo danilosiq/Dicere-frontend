@@ -1,15 +1,27 @@
 export async function closeBrowser(browser, onStage = () => {}) {
   if (!browser) return;
   onStage("contexts-closing");
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     browser.contexts().map(async (context, index) => {
-      await context.close();
-      onStage(`context-${index}-closed`);
+      try {
+        await Promise.all(
+          context
+            .pages()
+            .map((page) =>
+              page.evaluate(() => window.disposeDicereFixture?.()),
+            ),
+        );
+      } finally {
+        await context.close();
+        onStage(`context-${index}-closed`);
+      }
     }),
   );
   onStage("browser-closing");
   await browser.close();
   onStage("browser-closed");
+  if (results.some((result) => result.status === "rejected"))
+    throw new Error("BROWSER_CONTEXT_CLEANUP_FAILED");
 }
 
 async function bounded(action, timeoutMs) {

@@ -6,6 +6,7 @@ it("closes explicit browser contexts before the browser process", async () => {
   await closeBrowser({
     contexts: () => [
       {
+        pages: () => [{ evaluate: async () => events.push("fixture") }],
         close: async () => {
           events.push("context");
         },
@@ -15,7 +16,29 @@ it("closes explicit browser contexts before the browser process", async () => {
       events.push("browser");
     },
   });
-  expect(events).toEqual(["context", "browser"]);
+  expect(events).toEqual(["fixture", "context", "browser"]);
+});
+
+it("reports fixture failure but still closes the context and browser", async () => {
+  const closed = [];
+  await expect(
+    closeBrowser({
+      contexts: () => [
+        {
+          pages: () => [
+            {
+              evaluate: async () => {
+                throw new Error("fixture");
+              },
+            },
+          ],
+          close: async () => closed.push("context"),
+        },
+      ],
+      close: async () => closed.push("browser"),
+    }),
+  ).rejects.toThrow("BROWSER_CONTEXT_CLEANUP_FAILED");
+  expect(closed).toEqual(["context", "browser"]);
 });
 
 it("closes the owned room before a browser that never closes", async () => {

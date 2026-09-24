@@ -72,6 +72,8 @@ interrompe tracks/fontes, desconecta nós e o observador de legendas. Fontes
 terminadas são desconectadas imediatamente. Falha nessa limpeza reprova o
 executor, mas não impede a tentativa de fechar contexto e navegador. Essa
 limpeza é exclusiva do teste, não altera o microfone da aplicação pública.
+As streams nativas de câmera/áudio obtidas pelos clientes WebRTC do teste
+também são rastreadas e encerradas, inclusive se chegarem após iniciar a limpeza.
 Repetir a mesma gravação em dois participantes testa concorrência, não amplia
 o corpus humano. Silêncio, troca de sala/idioma, reconexão, mute e carga
 sustentada precisam ampliar a matriz; não marcar a história 10 concluída só por

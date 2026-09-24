@@ -1,13 +1,19 @@
 // Only replaces the microphone input. STT, Socket.IO and DeepL remain real.
 export function installMicrophoneFixture() {
   const fixtures = new Set();
+  const nativeStreams = new Set();
+  let disposed = false;
   let observer;
   const native = navigator.mediaDevices.getUserMedia.bind(
     navigator.mediaDevices,
   );
   navigator.mediaDevices.getUserMedia = async (constraints) => {
-    if (constraints.video !== false || !constraints.audio)
-      return native(constraints);
+    if (constraints.video !== false || !constraints.audio) {
+      const stream = await native(constraints);
+      if (disposed) stream.getTracks().forEach((track) => track.stop());
+      else nativeStreams.add(stream);
+      return stream;
+    }
     const context = new AudioContext({ sampleRate: 16000 });
     await context.resume();
     const destination = context.createMediaStreamDestination();
@@ -16,7 +22,11 @@ export function installMicrophoneFixture() {
     return destination.stream;
   };
   window.disposeDicereFixture = async () => {
+    disposed = true;
     navigator.mediaDevices.getUserMedia = native;
+    for (const stream of nativeStreams)
+      stream.getTracks().forEach((track) => track.stop());
+    nativeStreams.clear();
     observer?.disconnect();
     const owned = [...fixtures];
     fixtures.clear();

@@ -8,6 +8,40 @@ afterEach(() => {
   delete window.playDicereFixture;
 });
 
+it("stops native camera streams acquired by the test's WebRTC clients", async () => {
+  const stop = vi.fn();
+  const stream = { getTracks: () => [{ stop }] };
+  vi.stubGlobal("navigator", {
+    mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+  });
+  installMicrophoneFixture();
+  expect(
+    await navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+  ).toBe(stream);
+  await window.disposeDicereFixture();
+  await window.disposeDicereFixture();
+  expect(stop).toHaveBeenCalledOnce();
+});
+
+it("stops a pending native stream if it arrives after disposal", async () => {
+  const stop = vi.fn();
+  let resolve;
+  vi.stubGlobal("navigator", {
+    mediaDevices: {
+      getUserMedia: () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    },
+  });
+  installMicrophoneFixture();
+  const pending = navigator.mediaDevices.getUserMedia({ video: true });
+  await window.disposeDicereFixture();
+  resolve({ getTracks: () => [{ stop }] });
+  await pending;
+  expect(stop).toHaveBeenCalledOnce();
+});
+
 it("disposes every synthetic context, track and source, including replaced fixtures", async () => {
   const contexts = [];
   const native = vi.fn().mockResolvedValue("native-stream");

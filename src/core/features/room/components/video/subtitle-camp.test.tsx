@@ -34,6 +34,24 @@ const defaultProps = {
 };
 
 describe("SubtitleCamp", () => {
+  it("identifica a origem e a leitura sem mudar o destino ao selecionar a fala", () => {
+    const onLanguageChange = vi.fn();
+    render(
+      <SubtitleCamp
+        {...defaultProps}
+        targetLanguage="IT"
+        onLanguageChange={onLanguageChange}
+      />,
+    );
+    expect(screen.getByText("Idioma falado")).toBeTruthy();
+    expect(screen.getByText("Você lê: IT")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Selecionar idioma: PT-BR" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /ESES$/ }));
+    expect(onLanguageChange).toHaveBeenCalledWith("ES");
+    expect(screen.getByText("Você lê: IT")).toBeTruthy();
+  });
   it("expõe somente a correlação técnica da legenda visível, sem duplicar o texto original", () => {
     const translation = {
       ...makeTranslation(1, "Traduzione"),

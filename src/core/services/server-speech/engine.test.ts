@@ -30,6 +30,8 @@ vi.mock("../socket-service", () => ({
   getSocket: () => ({ on: mocks.on, off: mocks.off }),
 }));
 import { ServerSpeechEngine } from "./engine";
+import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -76,13 +78,16 @@ describe("ServerSpeechEngine", () => {
     expect(mocks.start).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
-  it("refuses non-Portuguese instead of silently using a Portuguese model", async () => {
-    const { engine, onError } = setup("es-ES");
-    await engine.start();
-    expect(onError).toHaveBeenCalledWith("STT_LANGUAGE_UNSUPPORTED");
-    expect(mocks.start).not.toHaveBeenCalled();
-    expect(mocks.ready).not.toHaveBeenCalled();
-  });
+  it.each(DEEPL_TARGET_LANGUAGES.filter((language) => language !== "PT-BR"))(
+    "refuses unsupported spoken %s before capture or service access",
+    async (language) => {
+      const { engine, onError } = setup(toSpeechRecognitionLocale(language));
+      await engine.start();
+      expect(onError).toHaveBeenCalledWith("STT_LANGUAGE_UNSUPPORTED");
+      expect(mocks.start).not.toHaveBeenCalled();
+      expect(mocks.ready).not.toHaveBeenCalled();
+    },
+  );
   it("reports denied permission without retry loops", async () => {
     mocks.start.mockRejectedValue(
       new DOMException("private message", "NotAllowedError"),

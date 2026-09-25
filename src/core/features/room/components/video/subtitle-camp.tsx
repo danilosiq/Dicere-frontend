@@ -22,6 +22,7 @@ import { useEffect, useRef } from "react";
 export type SubtitleCampProps = {
   captionIssue: CaptionIssue | null;
   language: DeepLTargetLanguage;
+  targetLanguage?: string | null;
   translations: ReceivedVoiceTranslation[];
   onLanguageChange: (language: DeepLTargetLanguage) => void;
   retryRecognition: () => void;
@@ -30,6 +31,7 @@ export type SubtitleCampProps = {
 export function SubtitleCamp({
   captionIssue,
   language,
+  targetLanguage,
   translations,
   onLanguageChange,
   retryRecognition,
@@ -55,11 +57,19 @@ export function SubtitleCamp({
     <Column className="absolute top-0 left-0 z-10 h-full min-h-0 w-[35%] rounded-t-md bg-linear-to-r from-black to-transparent">
       <Row className="w-full shrink-0 items-center gap-2 rounded-t-lg bg-white p-4 dark:bg-gray-800">
         <div className="min-w-0 flex-1">
+          <Typography size="xs" className="mb-1 block">
+            Idioma falado
+          </Typography>
           <SelectorCountry
             value={language}
             placeholder="Idioma falado"
             onSelect={onLanguageChange}
           />
+          {targetLanguage && (
+            <Typography size="xs" className="mt-1 block">
+              Você lê: {targetLanguage}
+            </Typography>
+          )}
         </div>
 
         {captionIssue?.retryable && (

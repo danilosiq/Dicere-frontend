@@ -59,6 +59,7 @@ export function VideoSection({ call }: { call: CallSession }) {
         <SubtitleCamp
           captionIssue={speechTranslation.captionIssue}
           language={speechLanguage}
+          targetLanguage={participant?.targetLanguage}
           translations={speechTranslation.translations}
           onLanguageChange={setSpeechLanguage}
           retryRecognition={speechTranslation.retryRecognition}

@@ -33,6 +33,26 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("server speech privacy gate", () => {
+  it("requires consent in a pilot room and preserves other rooms", () => {
+    const pilot = "550e8400-e29b-41d4-a716-446655440000";
+    vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "false");
+    vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
+    mocks.room = { id: pilot, participants: [] };
+    const view = render(<VideoSection call={call} />);
+    expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
+    expect(mocks.speech).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ativar transcrição nesta sala" }),
+    );
+    expect(mocks.speech).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
+    mocks.room = { id: "another-room", participants: [] };
+    view.rerender(<VideoSection call={call} />);
+    expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
+  });
   it("keeps capture off until consent and asks again for another room", () => {
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "true");
     const view = render(<VideoSection call={call} />);

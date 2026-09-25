@@ -19,7 +19,7 @@ export function VideoSection({ call }: { call: CallSession }) {
   const participant = useRoomSessionStore((state) => state.participant);
   const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
   const needsSpeechConsent =
-    isServerSpeechEnabled() && acceptedSpeechRoom !== room?.id;
+    isServerSpeechEnabled(room?.id) && acceptedSpeechRoom !== room?.id;
   const [speechLanguage, setSpeechLanguage] = useState<DeepLTargetLanguage>(
     getDefaultSpeechLanguage,
   );

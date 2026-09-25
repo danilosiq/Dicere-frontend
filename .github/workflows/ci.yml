@@ -102,6 +102,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://api.dicere.cloud
             NEXT_PUBLIC_SOCKET_URL=https://api.dicere.cloud
+            NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS=${{ vars.SPEECH_SERVER_CANARY_ROOM_IDS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - id: reference

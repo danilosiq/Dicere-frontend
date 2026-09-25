@@ -1,4 +1,5 @@
 import { calibrateClock } from "./microphone-fixture.mjs";
+import { verifyAudioClock } from "./audio-clock.mjs";
 
 const words = (text) =>
   text
@@ -50,6 +51,9 @@ export async function measure(
     await retry.click();
     await source.page.waitForTimeout(500);
   }
+  // A sleeping executor can keep JS alive while the audio clock is stalled.
+  // Fail explicitly before replay instead of interpreting silence as STT loss.
+  await verifyAudioClock(source.page);
   const before = target.translations.length;
   const beforeRender = target.rendered.length;
   const clocks = await Promise.all(

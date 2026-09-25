@@ -203,6 +203,11 @@ try {
           iteration,
           failure:
             result.reason instanceof Error ? result.reason.name : "TEST_FAILED",
+          failureCode:
+            result.reason instanceof Error &&
+            result.reason.message === "TEST_AUDIO_CLOCK_NOT_ADVANCING"
+              ? result.reason.message
+              : undefined,
           exactWords: false,
           withinBudget: false,
         });

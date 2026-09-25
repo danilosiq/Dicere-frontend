@@ -27,6 +27,12 @@ do arquivo. Em dúvida, use o início do intervalo possível para um limite supe
 conservador e mantenha `speechEndReviewed: false` até revisão.
 
 O controlador calibra os dois relógios e soma a incerteza da captura/calibração.
+Antes de cada fala, verifica que o relógio de áudio da fonte sintética avança e
+que sua track permanece ativa. Computador em suspensão/dark wake pode executar
+JavaScript sem avançar áudio; nesse caso registra
+`TEST_AUDIO_CLOCK_NOT_ADVANCING`, sem interpretar a ausência de áudio como
+resultado do reconhecedor. Isso não valida o microfone físico nem protege contra
+suspensão posterior: toda falha e medição incompleta continua no relatório.
 A observação da legenda ocorre após dois frames de renderização e usa o id do
 segmento. São preservados todos os resultados, inclusive timeout, falta de
 legenda e valores acima de 4 s. Repetições não contam como áudios humanos distintos.

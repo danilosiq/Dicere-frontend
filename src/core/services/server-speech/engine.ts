@@ -4,7 +4,7 @@ import { SpeechMicrophone } from "./microphone";
 import { StreamingSegmenter } from "./segmenter";
 
 type Stage = "preparing" | "microphone" | "listening";
-type Options = {
+export type ServerSpeechOptions = {
   roomId: string;
   locale: string;
   onStage: (stage: Stage) => void;
@@ -22,7 +22,7 @@ export class ServerSpeechEngine {
   };
   private readonly leaving = () => this.stop();
 
-  constructor(private readonly options: Options) {
+  constructor(private readonly options: ServerSpeechOptions) {
     this.client = new StreamingSpeechClient(options.roomId, (code) =>
       this.fail(code),
     );

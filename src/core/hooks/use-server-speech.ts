@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ServerSpeechEngine } from "@/core/services/server-speech/engine";
+import { RecoveringSpeechEngine } from "@/core/services/server-speech/recovery";
 import type { LocalCaptionIssue } from "./use-local-speech";
 
 function messageFor(code: string) {
@@ -32,7 +32,7 @@ export function useServerSpeech({
   useEffect(() => {
     if (!enabled || !roomId) return;
     let active = true;
-    const engine = new ServerSpeechEngine({
+    const engine = new RecoveringSpeechEngine({
       roomId,
       locale,
       onStage: (stage) => {
@@ -50,17 +50,21 @@ export function useServerSpeech({
                 },
           );
       },
-      onError: (code) => {
+      onError: (code, recovering, recoveryAttempt) => {
         if (!active) return;
         setIssue({
-          status: "blocked",
-          message: messageFor(code),
-          retryable: code !== "STT_LANGUAGE_UNSUPPORTED",
+          status: recovering ? "retry_wait" : "blocked",
+          message: recovering
+            ? `Reconectando a transcrição… Tentativa ${recoveryAttempt}/3. O trecho interrompido não será reenviado.`
+            : messageFor(code),
+          retryable: !recovering && code !== "STT_LANGUAGE_UNSUPPORTED",
         });
         console.error("[Dicere][ServerSpeech]", {
           code,
           locale,
           retryAttempt: attempt,
+          recoveryAttempt,
+          recovering,
         });
       },
     });

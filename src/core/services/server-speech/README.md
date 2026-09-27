@@ -19,6 +19,22 @@ garantida: ela deve ser medida no navegador e incluída nos 4000 ms totais.
 Silêncio e pausas não usam timers. O limite de 12 s continua retornando erro
 explícito; fala maior, contexto e janelas sobrepostas ainda não estão resolvidos.
 
+## Transporte com captura antecipada
+
+O cliente não bloqueia o envio da próxima fala esperando a transcrição/tradução
+da anterior. Mantém no máximo uma finalização pendente e uma captura no servidor;
+as finalizações continuam sequenciais, sem retransmissão ou entrega fora de ordem.
+Caso uma nova fala termine antes do ACK anterior, sua finalização aguarda esse ACK.
+A fila local permanece limitada a 64000 bytes e 32 comandos: uma conexão lenta
+continua produzindo erro explícito, não acúmulo ilimitado de áudio.
+
+Mute/saída/falha enviam `speech_cancel {}` para cancelar captura e processamento.
+Respostas tardias não reiniciam o fluxo. É necessário publicar primeiro o backend
+que admite uma captura durante processamento; em rollback, reverter primeiro
+este cliente ou desligar a flag. O protocolo v1 e o cliente sequencial anterior
+continuam compatíveis com o backend novo. Não é inferência incremental e não
+representa aprovação do SLA de 4 s nem do teste de capacidade de duas pessoas.
+
 Testes verificam PCM idêntico para diferentes tamanhos de pacote e posições de
 início, início baixo preservado no preroll, pausas, ausência de duplicação,
 limites, silêncio e descarte atômico de entrada inválida. Não incorporam áudio

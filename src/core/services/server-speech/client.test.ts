@@ -63,4 +63,103 @@ describe("StreamingSpeechClient", () => {
     for (let i = 0; i < 25; i++) client.chunk(new Float32Array(2048));
     expect(error).toHaveBeenCalledExactlyOnceWith("STT_BACKPRESSURE");
   });
+
+  it("uploads the next utterance while finishing, but serializes finalizations", async () => {
+    let complete!: (value: SpeechAck) => void;
+    let starts = 0;
+    const request = vi.fn().mockImplementation((event: string) => {
+      if (event === "speech_start")
+        return Promise.resolve({ result: "ok", sessionId: `${++starts}` });
+      if (event === "speech_finish")
+        return new Promise<SpeechAck>((resolve) => {
+          complete = resolve;
+        });
+      return Promise.resolve({ result: "ok" });
+    });
+    const error = vi.fn();
+    const client = new StreamingSpeechClient("room", error, request);
+    client.start();
+    client.chunk(new Float32Array([1]));
+    client.finish();
+    client.start();
+    client.chunk(new Float32Array([0.5]));
+    client.finish();
+    await flush();
+    expect(request.mock.calls.map(([event]) => event)).toEqual([
+      "speech_start",
+      "speech_chunk",
+      "speech_finish",
+      "speech_start",
+      "speech_chunk",
+    ]);
+    complete({ result: "ok" });
+    await flush();
+    expect(request.mock.calls.at(-1)).toEqual([
+      "speech_finish",
+      { sessionId: "2", lastSequence: 0 },
+    ]);
+    complete({ result: "ok" });
+    await flush();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it.each(["resolve", "reject"])(
+    "cancels all owned sessions and ignores a late %s",
+    async (settlement) => {
+      let resolve!: (value: SpeechAck) => void;
+      let reject!: (error: Error) => void;
+      const request = vi.fn().mockImplementation((event: string) => {
+        if (event === "speech_finish")
+          return new Promise<SpeechAck>((done, fail) => {
+            resolve = done;
+            reject = fail;
+          });
+        return Promise.resolve({ result: "ok", sessionId });
+      });
+      const error = vi.fn();
+      const client = new StreamingSpeechClient("room", error, request);
+      client.start();
+      client.chunk(new Float32Array([1]));
+      client.finish();
+      client.start();
+      client.chunk(new Float32Array([1]));
+      client.finish();
+      await flush();
+      client.stop();
+      expect(request.mock.calls.at(-1)).toEqual(["speech_cancel", {}]);
+      const calls = request.mock.calls.length;
+      if (settlement === "resolve") resolve({ result: "ok" });
+      else reject(new Error("STT_TIMEOUT"));
+      await flush();
+      expect(request).toHaveBeenCalledTimes(calls);
+      expect(error).not.toHaveBeenCalled();
+    },
+  );
+
+  it("discards the next capture if the previous inference fails", async () => {
+    let reject!: (error: Error) => void;
+    const request = vi.fn().mockImplementation((event: string) => {
+      if (event === "speech_finish")
+        return new Promise<SpeechAck>((_, fail) => {
+          reject = fail;
+        });
+      return Promise.resolve({ result: "ok", sessionId });
+    });
+    const error = vi.fn();
+    const client = new StreamingSpeechClient("room", error, request);
+    client.start();
+    client.chunk(new Float32Array([1]));
+    client.finish();
+    client.start();
+    client.chunk(new Float32Array([1]));
+    client.finish();
+    await flush();
+    reject(new Error("STT_TIMEOUT"));
+    await flush();
+    expect(error).toHaveBeenCalledExactlyOnceWith("STT_TIMEOUT");
+    expect(
+      request.mock.calls.filter(([event]) => event === "speech_finish"),
+    ).toHaveLength(1);
+    expect(request.mock.calls.at(-1)).toEqual(["speech_cancel", {}]);
+  });
 });

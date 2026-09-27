@@ -10,6 +10,7 @@ export class StreamingSpeechClient {
   private processing = false;
   private stopped = false;
   private sessionId?: string;
+  private finishing?: Promise<void>;
   private sequence = 0;
   private readonly payload: SpeechStart;
 
@@ -58,10 +59,8 @@ export class StreamingSpeechClient {
     this.stopped = true;
     this.queue = [];
     this.bytes = 0;
-    void this.request(
-      "speech_cancel",
-      this.sessionId ? { sessionId: this.sessionId } : {},
-    ).catch(() => undefined);
+    // A previous utterance may still be processing alongside this capture.
+    void this.request("speech_cancel", {}).catch(() => undefined);
     this.sessionId = undefined;
   }
 
@@ -104,25 +103,38 @@ export class StreamingSpeechClient {
             });
             this.bytes = Math.max(0, this.bytes - command.audio.byteLength);
           } else {
-            await this.request("speech_finish", {
+            // Upload the next capture during inference, but never run two
+            // finalizations for this speaker or deliver them out of order.
+            await this.finishing;
+            if (this.stopped) break;
+            const finishing = this.request("speech_finish", {
               sessionId: this.sessionId,
               lastSequence: this.sequence - 1,
-            });
+            })
+              .then(() => undefined)
+              .catch((error: unknown) => this.fail(error))
+              .finally(() => {
+                if (this.finishing === finishing) this.finishing = undefined;
+              });
+            this.finishing = finishing;
             this.sessionId = undefined;
           }
         }
       }
     } catch (error) {
-      if (!this.stopped) {
-        this.stop();
-        this.onError(
-          error instanceof Error && /^STT_[A-Z_]+$/.test(error.message)
-            ? error.message
-            : "STT_FAILED",
-        );
-      }
+      this.fail(error);
     } finally {
       this.processing = false;
     }
+  }
+
+  private fail(error: unknown) {
+    if (this.stopped) return;
+    this.stop();
+    this.onError(
+      error instanceof Error && /^STT_[A-Z_]+$/.test(error.message)
+        ? error.message
+        : "STT_FAILED",
+    );
   }
 }

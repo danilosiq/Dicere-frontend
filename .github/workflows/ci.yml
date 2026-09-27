@@ -59,6 +59,12 @@ jobs:
       - name: Executar testes
         run: npm test
 
+      - name: Instalar Chromium de teste
+        run: npx playwright install --with-deps chromium
+
+      - name: Verificar isolamento e reinício do microfone de STT
+        run: npm run test:speech-microphone
+
       - name: Gerar build
         run: npm run build
 

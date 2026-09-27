@@ -1,5 +1,18 @@
 # Teste real de voz no navegador
 
+## Smoke de lifecycle em CI
+
+`npm run test:speech-microphone` executa Chromium/AudioWorklet reais com o
+dispositivo sintético do navegador, sem API, modelo, tradução ou salas. Verifica
+duas capturas independentes: frames PCM recebidos, parada sem frames tardios,
+tracks de STT encerradas e stream separada da chamada preservada em stop/restart.
+O teste transpila o módulo real de microfone e serve o worklet real em loopback.
+Fechamento do browser tem prazo e falha se exigir encerramento forçado. Roda
+automaticamente no CI antes do build. Não valida acústica, conexão WebRTC entre
+pares, Chrome/Windows, qualidade de transcrição ou SLA fim a fim.
+
+## Ensaio fim a fim
+
 Este executor abre duas sessões reais do Dicere, cria uma sala exclusiva,
 seleciona IT/ES como destinos, aceita o aviso e injeta PCM somente na entrada do
 microfone de STT. AudioWorklet, segmentação, Socket.IO, backend, modelo e DeepL

@@ -2,6 +2,11 @@
 
 O workflow executa CI em pushes e PRs para `main` e `dev`. Após CI aprovado em um push para `main` (ou execução manual nessa branch), constrói e publica a imagem em `ghcr.io/danilosiq/dicere-frontend`, com tag do commit. O deploy usa o digest imutável retornado pelo build.
 
+A publicação e o deploy exigem também o contrato da API implantada, pelo check
+descrito em [piloto de voz](speech-pilot.md). Falha nessa checagem impede a etapa;
+não contornar o gate para forçar uma imagem incompatível. O candidato atual é
+restrito a piloto mesmo que alguém tente configurar a antiga flag global.
+
 ## Configuração inicial
 
 A configuração do servidor ainda é necessária. Sem ela, a etapa de deploy falha explicitamente; CI aprovado ou imagem publicada não significa que o site foi atualizado.
@@ -36,7 +41,7 @@ No backend, migrações de banco não são executadas automaticamente. Migraçõ
 ## Verificação
 
 - `bash -n scripts/deploy.sh scripts/deploy-remote.sh`
-- `node --test scripts/deploy-remote.check.mjs`
+- `node --test scripts/*.check.mjs`
 - CI do projeto e build Docker.
 - No GitHub, os jobs `quality`, `image` e `deploy` precisam terminar com sucesso.
 - Confirmar versão e comportamento em https://dicere.cloud e https://api.dicere.cloud.

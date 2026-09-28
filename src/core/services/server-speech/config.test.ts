@@ -36,7 +36,10 @@ it.each([
   },
 );
 
-it("preserves the explicit global rollout switch", () => {
+it("does not globally activate an unapproved release through a legacy flag", () => {
   vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "true");
-  expect(isServerSpeechEnabled(other)).toBe(true);
+  expect(isServerSpeechEnabled(other)).toBe(false);
+  vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
+  expect(isServerSpeechEnabled(pilot)).toBe(true);
+  expect(isServerSpeechEnabled(other)).toBe(false);
 });

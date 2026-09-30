@@ -1,8 +1,10 @@
 import type { SpeechStart } from "@/core/@types/server-speech";
+import { recordSpeechTranslationMetric } from "../speech-translation-service";
 import { requestSpeech } from "./transport";
 
 type Command =
-  { type: "start" | "finish" } | { type: "chunk"; audio: Uint8Array };
+  | { type: "start" | "finish"; observedAt: number }
+  | { type: "chunk"; audio: Uint8Array };
 
 export class StreamingSpeechClient {
   private queue: Command[] = [];
@@ -33,10 +35,10 @@ export class StreamingSpeechClient {
     await this.request("speech_ready", this.payload);
   }
   start() {
-    this.enqueue({ type: "start" });
+    this.enqueue({ type: "start", observedAt: performance.now() });
   }
   finish() {
-    this.enqueue({ type: "finish" });
+    this.enqueue({ type: "finish", observedAt: performance.now() });
   }
 
   chunk(frame: Float32Array) {
@@ -93,6 +95,11 @@ export class StreamingSpeechClient {
           }
           this.sessionId = result.sessionId;
           this.sequence = 0;
+          recordSpeechTranslationMetric({
+            name: "capture_start",
+            observedAt: command.observedAt,
+            traceId: result.sessionId,
+          });
         } else {
           if (!this.sessionId) throw new Error("STT_SESSION_NOT_FOUND");
           if (command.type === "chunk") {
@@ -103,12 +110,25 @@ export class StreamingSpeechClient {
             });
             this.bytes = Math.max(0, this.bytes - command.audio.byteLength);
           } else {
+            const sessionId = this.sessionId;
+            recordSpeechTranslationMetric({
+              name: "endpoint_detected",
+              observedAt: command.observedAt,
+              traceId: sessionId,
+            });
             // Upload the next capture during inference, but never run two
             // finalizations for this speaker or deliver them out of order.
             await this.finishing;
             if (this.stopped) break;
+            const finishSentAt = performance.now();
+            recordSpeechTranslationMetric({
+              name: "client_queue",
+              observedAt: finishSentAt,
+              traceId: sessionId,
+              durationMs: finishSentAt - command.observedAt,
+            });
             const finishing = this.request("speech_finish", {
-              sessionId: this.sessionId,
+              sessionId,
               lastSequence: this.sequence - 1,
             })
               .then(() => undefined)

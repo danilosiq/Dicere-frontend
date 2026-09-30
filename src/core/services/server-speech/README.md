@@ -44,3 +44,22 @@ gravação não contam como novos exemplos humanos nem aprovam precisão geral.
 A variante experimental com decisões em blocos de 256 amostras foi rejeitada
 após regressão de precisão. A versão deslizante remove a dependência da fase do
 bloco, mas a liberação pública continua condicionada aos gates da sprint.
+
+## Traces da história 09
+
+O ACK de `speech_start` associa o `sessionId` gerado no servidor aos instantes
+locais `capture_start` e `endpoint_detected` (callback `finish` do segmentador).
+`client_queue` mede no mesmo relógio quanto o `finish` aguardou na fila local,
+inclusive o ACK de uma fala anterior. O evento recebido carrega
+`traceId=sessionId` e `segmentId=sessionId:índice`; `receive` e `render`
+registram recebimento e inserção efetiva do trecho no DOM. `render` mede
+recebimento→DOM no relógio do destinatário, não pintura visual. Esses registros
+não contêm áudio ou texto da conversa. O endpoint anotado no áudio e o total
+entre aparelhos exigem executor calibrado com incerteza explícita; os relógios
+do navegador e do servidor não devem ser subtraídos diretamente.
+
+O teste de integração `speech-trace.integration.test.tsx` injeta um evento
+Socket.IO com o formato produzido pelo backend e verifica que os mesmos ids
+chegam a `receive` e ao nó DOM, sem registrar texto falado nas métricas. O
+socket e os provedores são substitutos de teste; isso não substitui um trace
+na sala piloto real nem homologa os 4 s fim a fim.

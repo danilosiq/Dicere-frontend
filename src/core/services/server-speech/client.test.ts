@@ -1,12 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SpeechAck } from "@/core/@types/server-speech";
 import { StreamingSpeechClient } from "./client";
+import {
+  clearSpeechTranslationMetrics,
+  getSpeechTranslationMetrics,
+} from "../speech-translation-service";
 
 const sessionId = "550e8400-e29b-41d4-a716-446655440000";
 const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };
 describe("StreamingSpeechClient", () => {
+  it("correlates capture endpoint and local finish queue with the server session", async () => {
+    clearSpeechTranslationMetrics();
+    const request = vi.fn().mockResolvedValue({ result: "ok", sessionId });
+    const client = new StreamingSpeechClient("room", vi.fn(), request);
+    client.start();
+    client.chunk(new Float32Array([1]));
+    client.finish();
+    await flush();
+    expect(getSpeechTranslationMetrics()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "capture_start", traceId: sessionId }),
+        expect.objectContaining({
+          name: "endpoint_detected",
+          traceId: sessionId,
+        }),
+        expect.objectContaining({
+          name: "client_queue",
+          traceId: sessionId,
+          durationMs: expect.any(Number),
+        }),
+      ]),
+    );
+  });
   it("orders start, PCM chunks and finish without sending duplicate text", async () => {
     const request = vi.fn().mockResolvedValue({ result: "ok", sessionId });
     const error = vi.fn();

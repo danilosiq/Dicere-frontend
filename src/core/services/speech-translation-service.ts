@@ -22,7 +22,11 @@ export type SpeechTranslationLocalMetric = {
     | "receive"
     | "recognition_first_interim"
     | "recognition_first_final"
-    | "segment_ready";
+    | "segment_ready"
+    | "capture_start"
+    | "endpoint_detected"
+    | "client_queue"
+    | "render";
   observedAt: number;
   segmentId?: string;
   traceId?: string;

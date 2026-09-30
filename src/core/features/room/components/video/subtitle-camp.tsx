@@ -16,8 +16,12 @@ import type {
   ReceivedVoiceTranslation,
 } from "@/core/hooks/use-speech-translation";
 import { cn } from "@/core/utils/cn";
+import {
+  getSpeechTranslationMetrics,
+  recordSpeechTranslationMetric,
+} from "@/core/services/speech-translation-service";
 import { CircleAlert } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 export type SubtitleCampProps = {
   captionIssue: CaptionIssue | null;
@@ -37,6 +41,7 @@ export function SubtitleCamp({
   retryRecognition,
 }: SubtitleCampProps) {
   const historyRef = useRef<HTMLDivElement>(null);
+  const renderedRef = useRef(new Set<string>());
   const visibleTranslations = translations.slice(-3);
   const latestTranslation = translations[translations.length - 1];
   const issueButtonClassName = captionIssue
@@ -52,6 +57,44 @@ export function SubtitleCamp({
     const history = historyRef.current;
     if (history) history.scrollTop = history.scrollHeight;
   }, [translations]);
+
+  useLayoutEffect(() => {
+    const history = historyRef.current;
+    if (!history) return;
+    const metrics = getSpeechTranslationMetrics();
+    for (const translation of visibleTranslations) {
+      if (!translation.segmentId || !translation.traceId) continue;
+      const key = `${translation.fromParticipantId}:${translation.segmentId}:${translation.revision ?? 0}:${translation.status ?? "final"}`;
+      if (renderedRef.current.has(key)) continue;
+      const inDom = Array.from(history.children).some(
+        (element) =>
+          element.getAttribute("data-speech-segment-id") ===
+            translation.segmentId &&
+          element.getAttribute("data-speech-participant-id") ===
+            translation.fromParticipantId,
+      );
+      if (!inDom) continue;
+      const renderedAt = performance.now();
+      const received = metrics.findLast(
+        (metric) =>
+          metric.name === "receive" &&
+          metric.segmentId === translation.segmentId &&
+          metric.traceId === translation.traceId,
+      );
+      recordSpeechTranslationMetric({
+        name: "render",
+        observedAt: renderedAt,
+        segmentId: translation.segmentId,
+        traceId: translation.traceId,
+        ...(received ? { durationMs: renderedAt - received.observedAt } : {}),
+      });
+      renderedRef.current.add(key);
+      if (renderedRef.current.size > 100) {
+        const oldest = renderedRef.current.values().next().value;
+        if (oldest) renderedRef.current.delete(oldest);
+      }
+    }
+  }, [visibleTranslations]);
 
   return (
     <Column className="absolute top-0 left-0 z-10 h-full min-h-0 w-[35%] rounded-t-md bg-linear-to-r from-black to-transparent">

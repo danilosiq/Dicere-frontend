@@ -4,6 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { ReceivedVoiceTranslation } from "@/core/hooks/use-speech-translation";
 
 import { SubtitleCamp } from "./subtitle-camp";
+import {
+  clearSpeechTranslationMetrics,
+  getSpeechTranslationMetrics,
+  recordSpeechTranslationMetric,
+} from "@/core/services/speech-translation-service";
 
 vi.mock("next/font/google", () => ({
   Baloo_2: () => ({ className: "", variable: "" }),
@@ -34,6 +39,41 @@ const defaultProps = {
 };
 
 describe("SubtitleCamp", () => {
+  it("registra a renderização da legenda no DOM uma vez por trecho e revisão", () => {
+    clearSpeechTranslationMetrics();
+    recordSpeechTranslationMetric({
+      name: "receive",
+      observedAt: performance.now() - 2,
+      segmentId: "segment-1",
+      traceId: "trace-1",
+    });
+    const translation = {
+      ...makeTranslation(1, "Traduzione"),
+      segmentId: "segment-1",
+      traceId: "trace-1",
+      revision: 0,
+    };
+    const { rerender } = render(
+      <SubtitleCamp {...defaultProps} translations={[translation]} />,
+    );
+    expect(
+      screen
+        .getByLabelText("Legenda traduzida")
+        .querySelector('[data-speech-segment-id="segment-1"]'),
+    ).toBeTruthy();
+    rerender(<SubtitleCamp {...defaultProps} translations={[translation]} />);
+    expect(
+      getSpeechTranslationMetrics().filter(
+        (metric) => metric.name === "render",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        segmentId: "segment-1",
+        traceId: "trace-1",
+        durationMs: expect.any(Number),
+      }),
+    ]);
+  });
   it("identifica a origem e a leitura sem mudar o destino ao selecionar a fala", () => {
     const onLanguageChange = vi.fn();
     render(

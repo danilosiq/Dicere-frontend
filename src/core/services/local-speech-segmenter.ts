@@ -1,5 +1,10 @@
 /** PCM segmentation is sample-based, so background timer throttling cannot grow a buffer. */
 export class LocalSpeechSegmenter {
+  private static readonly SOFT_LIMIT_SECONDS = 6;
+  private static readonly HARD_LIMIT_SECONDS = 8;
+  private static readonly SHORT_PAUSE_SECONDS = 0.2;
+  private static readonly NATURAL_PAUSE_SECONDS = 0.65;
+
   private frames: Float32Array[] = [];
   private length = 0;
   private silentSamples = 0;
@@ -29,10 +34,17 @@ export class LocalSpeechSegmenter {
       }
       return null;
     }
-    if (
-      this.length < this.sampleRate * 6 &&
-      this.silentSamples < this.sampleRate * 0.65
-    ) {
+    const softLimitReached =
+      this.length >= this.sampleRate * LocalSpeechSegmenter.SOFT_LIMIT_SECONDS;
+    const hardLimitReached =
+      this.length >= this.sampleRate * LocalSpeechSegmenter.HARD_LIMIT_SECONDS;
+    const pauseReached =
+      this.silentSamples >=
+      this.sampleRate *
+        (softLimitReached
+          ? LocalSpeechSegmenter.SHORT_PAUSE_SECONDS
+          : LocalSpeechSegmenter.NATURAL_PAUSE_SECONDS);
+    if (!hardLimitReached && !pauseReached) {
       return null;
     }
     const result =

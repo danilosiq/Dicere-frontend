@@ -35,16 +35,25 @@ describe("LocalSpeechSegmenter", () => {
     expect(feed(segmenter, 20, 0)).toEqual([]);
   });
 
-  it("bounds continuous speech to six-second chunks", () => {
+  it("waits for a short pause after six seconds instead of cutting a word", () => {
+    const segmenter = new LocalSpeechSegmenter(16000);
+    expect(feed(segmenter, 60, 0.1)).toEqual([]);
+    expect(feed(segmenter, 1, 0)).toEqual([]);
+    const result = feed(segmenter, 1, 0);
+    expect(result).toHaveLength(1);
+    expect(result[0].length).toBe(99200);
+  });
+
+  it("bounds continuous speech to an eight-second hard limit", () => {
     const result = feed(new LocalSpeechSegmenter(16000), 180, 0.1);
-    expect(result).toHaveLength(3);
-    expect(result.every((chunk) => chunk.length === 96000)).toBe(true);
+    expect(result).toHaveLength(2);
+    expect(result.every((chunk) => chunk.length === 128000)).toBe(true);
   });
 
   it("resamples a 48kHz device to the model's 16kHz input", () => {
-    const result = feed(new LocalSpeechSegmenter(48000), 60, 0.1, 4800);
+    const result = feed(new LocalSpeechSegmenter(48000), 80, 0.1, 4800);
     expect(result).toHaveLength(1);
-    expect(result[0].length).toBe(96000);
+    expect(result[0].length).toBe(128000);
     expect(result[0][1000]).toBeCloseTo(0.1);
   });
 });

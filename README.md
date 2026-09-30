@@ -54,7 +54,9 @@ o áudio da chamada WebRTC continua sendo transmitido ao outro participante.
   o cache do navegador. HTTPS, Worker, AudioContext, AudioWorklet e permissão de
   microfone são necessários.
 - AudioWorklet captura PCM; o segmentador converte para mono 16 kHz, ignora
-  silêncio e envia trechos após aproximadamente 650 ms de silêncio ou 6 s de fala.
+  silêncio e envia trechos após aproximadamente 650 ms de silêncio. Em fala
+  contínua, 6 s é um limite suave: ele aguarda uma pausa curta para não cortar
+  palavras, com teto absoluto de 8 s para manter a memória limitada.
 - A fila aceita até três trechos aguardando inferência. Sobrecarga é informada,
   não ocultada em uma fila crescente. O modelo tem limite de preparo de 120 s;
   microfone, 60 s; inferência de cada trecho, 30 s.

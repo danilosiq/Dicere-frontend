@@ -8,7 +8,11 @@ import type {
 } from "@/core/@types/socket-events";
 import { getSocket } from "@/core/services/socket-service";
 
-export const MAX_SPEECH_TRANSLATION_CHARACTERS = 250;
+import { splitSpeechText } from "./speech-text-segmentation";
+export {
+  MAX_SPEECH_TRANSLATION_CHARACTERS,
+  splitSpeechText,
+} from "./speech-text-segmentation";
 export const SPEECH_TRANSLATION_ACK_TIMEOUT_MS = 8_000;
 export const SPEECH_TRANSLATION_MAX_RETRIES = 2;
 export const SPEECH_TRANSLATION_METRICS_LIMIT = 100;
@@ -107,56 +111,6 @@ export type SpeechTranslationDeliveryOptions = {
     failure: SpeechTranslationDeliveryFailure,
   ) => void;
 };
-
-function splitLongWord(word: string) {
-  const chunks: string[] = [];
-
-  for (
-    let start = 0;
-    start < word.length;
-    start += MAX_SPEECH_TRANSLATION_CHARACTERS
-  ) {
-    chunks.push(word.slice(start, start + MAX_SPEECH_TRANSLATION_CHARACTERS));
-  }
-
-  return chunks;
-}
-
-export function splitSpeechText(text: string) {
-  const normalizedText = text.trim().replace(/\s+/g, " ");
-  if (!normalizedText) return [];
-
-  const chunks: string[] = [];
-  let currentChunk = "";
-
-  for (const word of normalizedText.split(" ")) {
-    if (word.length > MAX_SPEECH_TRANSLATION_CHARACTERS) {
-      if (currentChunk) {
-        chunks.push(currentChunk);
-        currentChunk = "";
-      }
-
-      chunks.push(...splitLongWord(word));
-      continue;
-    }
-
-    const candidate = currentChunk ? `${currentChunk} ${word}` : word;
-
-    if (candidate.length <= MAX_SPEECH_TRANSLATION_CHARACTERS) {
-      currentChunk = candidate;
-      continue;
-    }
-
-    chunks.push(currentChunk);
-    currentChunk = word;
-  }
-
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-}
 
 function createChunkPayload(
   payload: TranslateSpeechPayload,
@@ -281,10 +235,14 @@ export function sendSpeechForTranslation(
   const chunks = splitSpeechText(payload.text);
 
   chunks.forEach((text, chunkIndex) => {
-    emitSpeechChunk(
-      createChunkPayload(payload, text, chunkIndex, chunks.length),
-      options,
+    const chunkPayload = createChunkPayload(
+      payload,
+      text,
+      chunkIndex,
+      chunks.length,
     );
+    if (chunkIndex > 0) chunkPayload.previousContext = chunks[chunkIndex - 1];
+    emitSpeechChunk(chunkPayload, options);
   });
 
   return chunks;

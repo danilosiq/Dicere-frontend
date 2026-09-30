@@ -140,6 +140,7 @@ describe("speech-translation-service", () => {
       segmentId: "segment",
       sequence: 10,
       traceId: "trace",
+      previousContext: "Antes desta fala.",
     });
 
     expect(chunks.length).toBeGreaterThan(1);
@@ -154,6 +155,7 @@ describe("speech-translation-service", () => {
         segmentId: "segment:1",
         sequence: 10,
         traceId: "trace:1",
+        previousContext: "Antes desta fala.",
       }),
     );
     expect(socketMock.emitted[1]?.payload).toEqual(
@@ -161,6 +163,7 @@ describe("speech-translation-service", () => {
         segmentId: "segment:2",
         sequence: 11,
         traceId: "trace:2",
+        previousContext: chunks[0],
       }),
     );
   });

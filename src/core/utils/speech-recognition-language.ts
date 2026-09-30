@@ -1,5 +1,4 @@
 import type { DeepLTargetLanguage } from "@/core/components";
-import { isDeepLTargetLanguage } from "@/core/components/selector-country/countryList";
 
 const SPEECH_RECOGNITION_LOCALES: Record<DeepLTargetLanguage, string> = {
   BG: "bg-BG",
@@ -38,18 +37,27 @@ const SPEECH_RECOGNITION_LOCALES: Record<DeepLTargetLanguage, string> = {
   "ZH-HANS": "zh-CN",
 };
 
+/**
+ * The first production speech release is validated only for Brazilian
+ * Portuguese. Destination languages remain independent and are still handled
+ * by the translation service.
+ */
+export const SUPPORTED_SPEECH_SOURCE_LANGUAGES = ["PT-BR"] as const;
+
+export function isSpeechSourceLanguageSupported(language: DeepLTargetLanguage) {
+  return language === SUPPORTED_SPEECH_SOURCE_LANGUAGES[0];
+}
+
+export function speechSourceLanguageMessage(language: DeepLTargetLanguage) {
+  return `A transcrição de voz em ${language} ainda não está disponível. Selecione PT-BR em “Idioma falado”.`;
+}
+
 export function toSpeechRecognitionLocale(language: DeepLTargetLanguage) {
   return SPEECH_RECOGNITION_LOCALES[language];
 }
 
 export function getDefaultSpeechLanguage(): DeepLTargetLanguage {
-  if (typeof navigator === "undefined") return "PT-BR";
-
-  const browserLanguage = navigator.language.toUpperCase();
-  if (isDeepLTargetLanguage(browserLanguage)) return browserLanguage;
-
-  const baseLanguage = browserLanguage.split("-")[0];
-  if (isDeepLTargetLanguage(baseLanguage)) return baseLanguage;
-
+  // PT-BR is the only speech source validated for the first release. Do not
+  // infer an unsupported browser language and start the low-quality fallback.
   return "PT-BR";
 }

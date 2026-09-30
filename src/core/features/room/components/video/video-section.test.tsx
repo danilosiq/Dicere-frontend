@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallSession } from "@/core/hooks/use-call-session";
 const mocks = vi.hoisted(() => ({
   speech: vi.fn(),
+  subtitle: vi.fn(),
   room: { id: "room-1", participants: [] },
 }));
 vi.mock("next/font/google", () => ({
@@ -19,12 +20,18 @@ vi.mock("@/core/store/room-session-store", () => ({
 vi.mock("@/core/components/media-stream-video", () => ({
   MediaStreamVideo: () => null,
 }));
-vi.mock("./subtitle-camp", () => ({ SubtitleCamp: () => null }));
+vi.mock("./subtitle-camp", () => ({
+  SubtitleCamp: (props: unknown) => {
+    mocks.subtitle(props);
+    return null;
+  },
+}));
 import { VideoSection } from "./video-section";
 const call = { microphoneEnabled: true, isLeaving: false } as CallSession;
 
 beforeEach(() => {
   mocks.room = { id: "room-1", participants: [] };
+  mocks.subtitle.mockReset();
   mocks.speech.mockReturnValue({
     captionIssue: null,
     translations: [],
@@ -52,6 +59,27 @@ describe("server speech privacy gate", () => {
     mocks.room = { id: "another-room", participants: [] };
     view.rerender(<VideoSection call={call} />);
     expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
+  });
+
+  it("blocks unvalidated spoken languages without starting capture", () => {
+    const view = render(<VideoSection call={call} />);
+    const subtitleProps = mocks.subtitle.mock.calls.at(-1)?.[0] as {
+      onLanguageChange: (language: "DE") => void;
+    };
+
+    act(() => subtitleProps.onLanguageChange("DE"));
+    view.rerender(<VideoSection call={call} />);
+
+    expect(mocks.speech).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    expect(mocks.subtitle.mock.calls.at(-1)?.[0]).toMatchObject({
+      captionIssue: {
+        status: "blocked",
+        retryable: false,
+        message: expect.stringContaining("Selecione PT-BR"),
+      },
+    });
   });
   it("keeps capture off until consent and asks again for another room", () => {
     const firstPilot = "550e8400-e29b-41d4-a716-446655440000";

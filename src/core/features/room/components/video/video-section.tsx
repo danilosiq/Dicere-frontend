@@ -7,7 +7,11 @@ import type { DeepLTargetLanguage } from "@/core/components";
 import type { CallSession } from "@/core/hooks/use-call-session";
 import { useSpeechTranslation } from "@/core/hooks/use-speech-translation";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
-import { getDefaultSpeechLanguage } from "@/core/utils/speech-recognition-language";
+import {
+  getDefaultSpeechLanguage,
+  isSpeechSourceLanguageSupported,
+  speechSourceLanguageMessage,
+} from "@/core/utils/speech-recognition-language";
 import { LoaderCircle, UserRound, VideoOff } from "lucide-react";
 import { useState } from "react";
 import { SubtitleCamp } from "./subtitle-camp";
@@ -23,6 +27,7 @@ export function VideoSection({ call }: { call: CallSession }) {
   const [speechLanguage, setSpeechLanguage] = useState<DeepLTargetLanguage>(
     getDefaultSpeechLanguage,
   );
+  const speechSourceSupported = isSpeechSourceLanguageSupported(speechLanguage);
   const speechTranslation = useSpeechTranslation({
     roomId: room?.id,
     language: speechLanguage,
@@ -30,7 +35,8 @@ export function VideoSection({ call }: { call: CallSession }) {
       Boolean(room?.id) &&
       call.microphoneEnabled &&
       !call.isLeaving &&
-      !needsSpeechConsent,
+      !needsSpeechConsent &&
+      speechSourceSupported,
   });
   const remoteParticipant = room?.participants.find(
     ({ id }) => id !== participant?.id,
@@ -57,7 +63,15 @@ export function VideoSection({ call }: { call: CallSession }) {
           />
         )}
         <SubtitleCamp
-          captionIssue={speechTranslation.captionIssue}
+          captionIssue={
+            speechSourceSupported
+              ? speechTranslation.captionIssue
+              : {
+                  status: "blocked",
+                  message: speechSourceLanguageMessage(speechLanguage),
+                  retryable: false,
+                }
+          }
           language={speechLanguage}
           targetLanguage={participant?.targetLanguage}
           translations={speechTranslation.translations}

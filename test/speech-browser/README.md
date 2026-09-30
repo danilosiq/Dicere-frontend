@@ -1,5 +1,24 @@
 # Teste real de voz no navegador
 
+## Fronteiras da captura local
+
+O caminho local reagrupa PCM em janelas canônicas de 2048 amostras antes de
+decidir atividade e silêncio. Fragmentação dos pacotes não muda as amostras
+entregues ao modelo. Os testes de fronteira cobrem 16/44,1/48 kHz, diferentes
+alinhamentos, pausas internas, repetição, PCM inválido e múltiplos endpoints em
+um pacote. A fila continua limitada a três trechos além do processamento ativo.
+
+O teto nominal de 8 s é avaliado no fim de uma janela: o limite efetivo é
+`ceil(8 × sampleRate / 2048) × 2048` amostras (8,064 s em 16 kHz), como já ocorria
+em produção. Uma hipótese com janela de energia de 16 ms e outra com corte em
+8,000 s exatos foram rejeitadas após regressões no modelo real. Não confundir
+essa duração máxima do áudio com o SLA de 4 s após o fim da fala.
+
+Cliques não contam como janelas inteiras de atividade: o mínimo usa energia
+em janelas móveis de 16 ms, sem mudar a regra de endpoint. Isso não é um detector
+semântico de voz, nem garante ausência de alucinação em ruído. O modelo Tiny,
+os idiomas liberados e o rollout do STT interno não mudam nesta correção.
+
 ## Smoke de lifecycle em CI
 
 `npm run test:speech-microphone` executa Chromium/AudioWorklet reais com o

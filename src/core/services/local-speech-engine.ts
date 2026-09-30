@@ -105,14 +105,18 @@ export class LocalSpeechEngine {
         data,
       }: MessageEvent<Float32Array>) => {
         if (this.stopped) return;
-        const audio = segmenter.push(data);
-        if (!audio) return;
-        if (this.queue.length >= 3) {
-          this.fail("TranscriptionTooSlow");
-          return;
+        try {
+          for (const audio of segmenter.push(data)) {
+            if (this.queue.length >= 3) {
+              this.fail("TranscriptionTooSlow");
+              return;
+            }
+            this.queue.push(audio);
+            void this.drain();
+          }
+        } catch {
+          this.fail("InvalidSpeechAudio");
         }
-        this.queue.push(audio);
-        void this.drain();
       };
       this.processor.onprocessorerror = () => this.fail("AudioProcessorError");
       this.source.connect(this.processor);

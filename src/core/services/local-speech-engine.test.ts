@@ -64,7 +64,7 @@ async function ready() {
 
 function phrase() {
   const processor = FakeProcessor.instances[0];
-  for (let index = 0; index < 17; index += 1) {
+  for (let index = 0; index < 19; index += 1) {
     processor.port.onmessage?.({
       data: new Float32Array(1600).fill(index < 10 ? 0.1 : 0),
     });
@@ -90,6 +90,38 @@ afterEach(() => {
 });
 
 describe("LocalSpeechEngine", () => {
+  it("delivers every endpoint in order even when they arrive in one PCM packet", async () => {
+    const { engine, onText } = await ready();
+    const pcm = new Float32Array(16000 * 4);
+    pcm.fill(0.1, 6400, 16000);
+    pcm.fill(0.1, 32000, 41600);
+    FakeProcessor.instances[0].port.onmessage?.({ data: pcm });
+    const worker = FakeWorker.instances[0];
+    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+    worker.reply({ id: 2, type: "text", text: "Primeira frase." });
+    await Promise.resolve();
+    expect(worker.postMessage).toHaveBeenCalledTimes(3);
+    worker.reply({ id: 3, type: "text", text: "Segunda frase." });
+    await Promise.resolve();
+    expect(onText.mock.calls.flat()).toEqual([
+      "Primeira frase.",
+      "Segunda frase.",
+    ]);
+    engine.stop();
+  });
+
+  it("rejects corrupt PCM visibly and releases the microphone", async () => {
+    const { onError } = await ready();
+    FakeProcessor.instances[0].port.onmessage?.({
+      data: new Float32Array([NaN]),
+    });
+    expect(onError).toHaveBeenCalledWith({
+      stage: "listening",
+      errorName: "InvalidSpeechAudio",
+    });
+    expect(track.stop).toHaveBeenCalledOnce();
+  });
+
   it("works without Web Speech API and never requests a microphone before the model is ready", async () => {
     expect(supportsLocalSpeech()).toBe(true);
     const { engine, onStage } = setup();

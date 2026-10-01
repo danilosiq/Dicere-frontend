@@ -65,6 +65,9 @@ jobs:
       - name: Verificar isolamento e reinício do microfone de STT
         run: npm run test:speech-microphone
 
+      - name: Verificar drenagem local de segmento fechado após mute
+        run: npm run test:local-speech-lifecycle
+
       - name: Gerar build
         run: npm run build
 

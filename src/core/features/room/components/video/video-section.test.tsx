@@ -40,6 +40,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("server speech privacy gate", () => {
+  it("cancels the speech room immediately when leaving, rather than draining mute", () => {
+    render(<VideoSection call={{ ...call, isLeaving: true }} />);
+    expect(mocks.speech).toHaveBeenLastCalledWith(
+      expect.objectContaining({ roomId: undefined, enabled: false }),
+    );
+  });
+
   it("requires consent in a pilot room and preserves other rooms", () => {
     const pilot = "550e8400-e29b-41d4-a716-446655440000";
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "false");

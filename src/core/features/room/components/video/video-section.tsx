@@ -29,7 +29,8 @@ export function VideoSection({ call }: { call: CallSession }) {
   );
   const speechSourceSupported = isSpeechSourceLanguageSupported(speechLanguage);
   const speechTranslation = useSpeechTranslation({
-    roomId: room?.id,
+    // Leaving cancels the session; mute only finishes already closed speech.
+    roomId: call.isLeaving ? undefined : room?.id,
     language: speechLanguage,
     enabled:
       Boolean(room?.id) &&

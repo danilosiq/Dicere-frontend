@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:speech-browser": "node test/speech-browser/run.mjs",
-    "test:speech-microphone": "node test/speech-browser/microphone-lifecycle.mjs"
+    "test:speech-microphone": "node test/speech-browser/microphone-lifecycle.mjs",
+    "test:local-speech-lifecycle": "node test/speech-browser/local-engine-lifecycle.mjs"
   },
   "engines": {
     "node": ">=22.13.0"

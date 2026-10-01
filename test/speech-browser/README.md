@@ -30,6 +30,14 @@ Fechamento do browser tem prazo e falha se exigir encerramento forçado. Roda
 automaticamente no CI antes do build. Não valida acústica, conexão WebRTC entre
 pares, Chrome/Windows, qualidade de transcrição ou SLA fim a fim.
 
+`npm run test:local-speech-lifecycle` exercita o motor local e o segmentador
+reais com AudioContext/AudioWorklet no Chromium, áudio sintético e worker de
+inferência controlado. Verifica liberação imediata da captura no mute, entrega
+única dos segmentos já fechados, cancelamento durante drenagem e preservação
+da stream separada da chamada. Também roda no CI, sem carregar Whisper,
+contatar API/DeepL ou criar sala. Resposta controlada não comprova qualidade
+do reconhecedor; a matriz real abaixo permanece independente.
+
 ## Ensaio fim a fim
 
 Este executor abre duas sessões reais do Dicere, cria uma sala exclusiva,

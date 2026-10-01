@@ -57,7 +57,7 @@ function setup() {
 async function ready() {
   const result = setup();
   const start = result.engine.start();
-  FakeWorker.instances[0].reply({ id: 1, type: "ready" });
+  FakeWorker.instances.at(-1)!.reply({ id: 1, type: "ready" });
   await start;
   return result;
 }
@@ -191,6 +191,90 @@ describe("LocalSpeechEngine", () => {
     await Promise.resolve();
     expect(onText).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("releases capture on mute and drains only closed segments in order", async () => {
+    const { engine, onText } = await ready();
+    const pcm = new Float32Array(16000 * 4);
+    pcm.fill(0.1, 6400, 16000);
+    pcm.fill(0.1, 32000, 41600);
+    FakeProcessor.instances[0].port.onmessage?.({ data: pcm });
+    const finish = engine.finishClosedSegments();
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    expect(FakeWorker.instances[0].terminate).not.toHaveBeenCalled();
+    FakeProcessor.instances[0].port.onmessage?.({ data: pcm });
+    FakeWorker.instances[0].reply({ id: 2, type: "text", text: "Primeira" });
+    await Promise.resolve();
+    expect(FakeWorker.instances[0].postMessage).toHaveBeenCalledTimes(3);
+    FakeWorker.instances[0].reply({ id: 3, type: "text", text: "Segunda" });
+    await finish;
+    expect(onText.mock.calls.flat()).toEqual(["Primeira", "Segunda"]);
+    expect(FakeWorker.instances[0].postMessage).toHaveBeenCalledTimes(3);
+    expect(FakeWorker.instances[0].terminate).toHaveBeenCalledOnce();
+  });
+
+  it("drops an unfinished segment on mute and cancels a draining segment on stop", async () => {
+    const { engine, onText } = await ready();
+    FakeProcessor.instances[0].port.onmessage?.({
+      data: new Float32Array(16000).fill(0.1),
+    });
+    await engine.finishClosedSegments();
+    expect(FakeWorker.instances[0].postMessage).toHaveBeenCalledTimes(1);
+    expect(onText).not.toHaveBeenCalled();
+
+    const next = await ready();
+    for (let index = 0; index < 19; index += 1) {
+      FakeProcessor.instances[1].port.onmessage?.({
+        data: new Float32Array(1600).fill(index < 10 ? 0.1 : 0),
+      });
+    }
+    const finish = next.engine.finishClosedSegments();
+    next.engine.stop();
+    FakeWorker.instances[1].reply({ id: 2, type: "text", text: "stale" });
+    await finish;
+    expect(next.onText).not.toHaveBeenCalled();
+  });
+
+  it("bounds the entire muted drain and reports timeout", async () => {
+    const { engine, onError } = await ready();
+    phrase();
+    const finish = engine.finishClosedSegments();
+    await vi.advanceTimersByTimeAsync(30000);
+    await finish;
+    expect(onError).toHaveBeenCalledWith({
+      stage: "transcription",
+      errorName: "TranscriptionTimeout",
+    });
+    expect(FakeWorker.instances[0].terminate).toHaveBeenCalledOnce();
+  });
+
+  it("does not start capture after mute while waiting for microphone grant", async () => {
+    let grant!: (value: typeof stream) => void;
+    getUserMedia.mockReturnValue(
+      new Promise((resolve) => {
+        grant = resolve;
+      }),
+    );
+    const { engine } = setup();
+    const start = engine.start();
+    FakeWorker.instances[0].reply({ id: 1, type: "ready" });
+    await Promise.resolve();
+    await engine.finishClosedSegments();
+    grant(stream);
+    await start;
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(FakeProcessor.instances).toHaveLength(0);
+  });
+
+  it("does not request a microphone after muting during model loading", async () => {
+    const { engine, onText } = setup();
+    const start = engine.start();
+    await engine.finishClosedSegments();
+    FakeWorker.instances[0].reply({ id: 1, type: "ready" });
+    await start;
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(onText).not.toHaveBeenCalled();
   });
 
   it("reports a model timeout and terminates the worker", async () => {

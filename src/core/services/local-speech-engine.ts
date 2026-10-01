@@ -35,6 +35,10 @@ export class LocalSpeechEngine {
   private stage: LocalSpeechFailure["stage"] = "loading";
   private queue: Float32Array[] = [];
   private processing = false;
+  private captureClosed = false;
+  private finishPromise?: Promise<void>;
+  private resolveFinish?: () => void;
+  private finishTimer?: ReturnType<typeof setTimeout>;
   private sequence = 0;
   private captureTimer?: ReturnType<typeof setTimeout>;
   private pending = new Map<
@@ -84,7 +88,7 @@ export class LocalSpeechEngine {
         },
         video: false,
       });
-      if (this.stopped) {
+      if (this.stopped || this.captureClosed) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -95,16 +99,16 @@ export class LocalSpeechEngine {
       await this.context.audioWorklet.addModule(
         "/audio/dicere-pcm-processor.js",
       );
-      if (this.stopped) return;
+      if (this.stopped || this.captureClosed) return;
       await this.context.resume();
-      if (this.stopped) return;
+      if (this.stopped || this.captureClosed) return;
       const segmenter = new LocalSpeechSegmenter(this.context.sampleRate);
       this.source = this.context.createMediaStreamSource(stream);
       this.processor = new AudioWorkletNode(this.context, "dicere-pcm");
       this.processor.port.onmessage = ({
         data,
       }: MessageEvent<Float32Array>) => {
-        if (this.stopped) return;
+        if (this.stopped || this.captureClosed) return;
         try {
           for (const audio of segmenter.push(data)) {
             if (this.queue.length >= 3) {
@@ -143,22 +147,53 @@ export class LocalSpeechEngine {
     if (this.stopped) return;
     this.stopped = true;
     clearTimeout(this.captureTimer);
+    clearTimeout(this.finishTimer);
     this.queue = [];
     this.worker?.terminate();
-    this.source?.disconnect();
-    this.processor?.disconnect();
-    this.processor?.port.close();
-    this.stream?.getTracks().forEach((track) => {
-      track.onended = null;
-      track.stop();
-    });
-    if (this.context && this.context.state !== "closed")
-      void this.context.close().catch(() => undefined);
+    this.releaseCapture();
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);
       request.reject(new Error("SessionCancelled"));
     }
     this.pending.clear();
+    this.resolveFinish?.();
+    this.resolveFinish = undefined;
+  }
+
+  /** Release the microphone now; finish only segments already closed by the VAD. */
+  finishClosedSegments(): Promise<void> {
+    if (this.finishPromise) return this.finishPromise;
+    if (this.stopped) return Promise.resolve();
+    this.captureClosed = true;
+    this.releaseCapture();
+    if (!this.processing && this.queue.length === 0) {
+      this.stop();
+      return Promise.resolve();
+    }
+    this.finishPromise = new Promise<void>((resolve) => {
+      this.resolveFinish = resolve;
+    });
+    this.finishTimer = setTimeout(
+      () => this.fail("TranscriptionTimeout"),
+      30_000,
+    );
+    return this.finishPromise;
+  }
+
+  private releaseCapture() {
+    this.source?.disconnect();
+    this.source = undefined;
+    this.processor?.disconnect();
+    this.processor?.port.close();
+    this.processor = undefined;
+    this.stream?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    this.stream = undefined;
+    if (this.context && this.context.state !== "closed")
+      void this.context.close().catch(() => undefined);
+    this.context = undefined;
   }
 
   private fail(errorName: string) {
@@ -212,6 +247,8 @@ export class LocalSpeechEngine {
         );
     } finally {
       this.processing = false;
+      if (this.captureClosed && !this.stopped && this.queue.length === 0)
+        this.stop();
     }
   }
 }

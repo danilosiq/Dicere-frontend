@@ -23,3 +23,23 @@ recuperação não transforma o trecho perdido em sucesso nem garante os 4 segun
 Não aumenta os prazos da API/modelo, não habilita o rollout global e não resolve
 o limite atual de 12 segundos de fala contínua. Testes simulados cobrem o ciclo;
 validação de rede, carga e áudio reais permanece independente.
+
+## Mute no reconhecimento local
+
+O fluxo local distingue silenciar de cancelar a sessão. Ao mutar, a captura
+separada do reconhecimento libera suas tracks, conexões e AudioContext
+imediatamente. PCM posterior é ignorado. Somente segmentos já fechados pelo
+segmentador, em inferência ou na fila limitada existente, podem terminar e
+entregar texto uma vez, na ordem original. Áudio parcial ainda sem endpoint
+não é transcrito nem enviado. A trilha WebRTC continua sob controle da chamada.
+
+A drenagem tem prazo máximo de 30 segundos, sem ampliar o timeout de inferência.
+Mute/unmute rápidos não iniciam dois modelos em paralelo: a próxima sessão
+aguarda a drenagem anterior e não inicia se tiver sido cancelada nesse intervalo.
+Saída, troca de sala/idioma, retry e desmontagem cancelam worker, fila e callbacks
+antigos. Silenciar durante preparação/permissão não inicia captura posteriormente.
+
+Testes determinísticos cobrem esse ciclo com respostas de worker controladas.
+O teste Chromium usa recursos de mídia/worklet reais e microfone sintético, mas
+não executa Whisper, API ou DeepL. Ele valida lifecycle, não qualidade acústica,
+tradução, microfone físico, Windows ou o limite fim a fim de quatro segundos.

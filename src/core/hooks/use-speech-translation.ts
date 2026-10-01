@@ -160,6 +160,7 @@ export function useSpeechTranslation({
   const previousFinalContextRef = useRef("");
   const translationsRef = useRef<NormalizedReceivedVoiceTranslation[]>([]);
   const deliveryGenerationRef = useRef(0);
+  const roomAbortControllerRef = useRef<AbortController | null>(null);
   const pendingCommitMetricsRef = useRef(
     new Map<
       string,
@@ -190,6 +191,7 @@ export function useSpeechTranslation({
 
       try {
         sendSpeechForTranslation(payload, {
+          signal: roomAbortControllerRef.current?.signal,
           onAcknowledged: (acknowledgedPayload) => {
             if (generation !== deliveryGenerationRef.current) return;
             const acknowledgedKey = getDeliveryKey(acknowledgedPayload);
@@ -332,6 +334,8 @@ export function useSpeechTranslation({
   }, [retryPendingDelivery]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    roomAbortControllerRef.current = controller;
     pendingDeliveriesRef.current = [];
     inFlightDeliveriesRef.current.clear();
     blockedDeliveriesRef.current.clear();
@@ -342,6 +346,10 @@ export function useSpeechTranslation({
     const inFlight = inFlightDeliveriesRef.current;
     const blocked = blockedDeliveriesRef.current;
     return () => {
+      controller.abort();
+      if (roomAbortControllerRef.current === controller) {
+        roomAbortControllerRef.current = null;
+      }
       deliveryGenerationRef.current += 1;
       clearDeliveryTimer();
       pendingDeliveriesRef.current = [];

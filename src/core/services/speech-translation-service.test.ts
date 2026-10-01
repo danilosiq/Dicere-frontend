@@ -7,16 +7,23 @@ const socketMock = vi.hoisted(() => {
     segmentId?: string;
     revision?: number;
     traceId?: string;
-    error?: { code: string; message: string };
+    error?: {
+      code: string;
+      message: string;
+      retryable?: boolean;
+      retryAfterMs?: number;
+    };
   };
   type AckResult = {
     error?: Error;
     acknowledgement?: Acknowledgement;
+    defer?: boolean;
   };
 
   const handlers = new Map<string, Set<Handler>>();
   const emitted: Array<{ event: string; payload: unknown }> = [];
   const ackResults: AckResult[] = [];
+  const deferredAcks: Array<() => void> = [];
 
   const socket = {
     connected: true,
@@ -29,15 +36,18 @@ const socketMock = vi.hoisted(() => {
       emitted.push({ event, payload });
       if (acknowledgement) {
         const next = ackResults.shift();
-        acknowledgement(
-          next?.error ?? null,
-          next?.acknowledgement ?? {
-            result: "ok",
-            segmentId: payload.segmentId as string | undefined,
-            revision: payload.revision as number | undefined,
-            traceId: payload.traceId as string | undefined,
-          },
-        );
+        const respond = () =>
+          acknowledgement(
+            next?.error ?? null,
+            next?.acknowledgement ?? {
+              result: "ok",
+              segmentId: payload.segmentId as string | undefined,
+              revision: payload.revision as number | undefined,
+              traceId: payload.traceId as string | undefined,
+            },
+          );
+        if (next?.defer) deferredAcks.push(respond);
+        else respond();
       }
       return socket;
     },
@@ -61,6 +71,7 @@ const socketMock = vi.hoisted(() => {
       handlers.clear();
       emitted.length = 0;
       ackResults.length = 0;
+      deferredAcks.length = 0;
       socket.connected = true;
       socket.timeout.mockClear();
     },
@@ -69,6 +80,9 @@ const socketMock = vi.hoisted(() => {
     },
     listenerCount(event: string) {
       return handlers.get(event)?.size ?? 0;
+    },
+    respondToDeferredAck() {
+      deferredAcks.shift()?.();
     },
   };
 });
@@ -98,6 +112,277 @@ describe("speech-translation-service", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("recovers a transient provider error with the same segment identity", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push(
+        {
+          acknowledgement: {
+            result: "error",
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+              retryAfterMs: 900,
+            },
+          },
+        },
+        { acknowledgement: { result: "ok" } },
+      );
+      const onAcknowledged = vi.fn();
+      const onTerminalError = vi.fn();
+      sendSpeechForTranslation(
+        { roomId: "room-1", text: "Olá", segmentId: "segment-1" },
+        { onAcknowledged, onTerminalError },
+      );
+      expect(socketMock.emitted).toHaveLength(1);
+      vi.advanceTimersByTime(899);
+      expect(socketMock.emitted).toHaveLength(1);
+      vi.advanceTimersByTime(1);
+      expect(socketMock.emitted).toHaveLength(2);
+      expect(socketMock.emitted[1]?.payload).toEqual(
+        socketMock.emitted[0]?.payload,
+      );
+      expect(onAcknowledged).toHaveBeenCalledOnce();
+      expect(onTerminalError).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops after two transient provider retries without starting the hook retry loop", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push(
+        ...Array.from({ length: 3 }, () => ({
+          acknowledgement: {
+            result: "error" as const,
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+            },
+          },
+        })),
+      );
+      const onTerminalError = vi.fn();
+      sendSpeechForTranslation(
+        { roomId: "room-1", text: "Olá", segmentId: "segment-1" },
+        { onTerminalError },
+      );
+      vi.runAllTimers();
+      expect(socketMock.emitted).toHaveLength(3);
+      expect(onTerminalError).toHaveBeenCalledOnce();
+      expect(onTerminalError).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ retryable: false }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses 500 ms then 1000 ms backoff without retryAfterMs", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push(
+        {
+          acknowledgement: {
+            result: "error",
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+            },
+          },
+        },
+        {
+          acknowledgement: {
+            result: "error",
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+            },
+          },
+        },
+        { acknowledgement: { result: "ok" } },
+      );
+      sendSpeechForTranslation({ roomId: "room-1", text: "Olá" });
+      vi.advanceTimersByTime(499);
+      expect(socketMock.emitted).toHaveLength(1);
+      vi.advanceTimersByTime(1);
+      expect(socketMock.emitted).toHaveLength(2);
+      vi.advanceTimersByTime(999);
+      expect(socketMock.emitted).toHaveLength(2);
+      vi.advanceTimersByTime(1);
+      expect(socketMock.emitted).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats an invalid provider retryAfterMs as terminal", () => {
+    socketMock.ackResults.push({
+      acknowledgement: {
+        result: "error",
+        error: {
+          code: "TRANSLATION_PROVIDER_ERROR",
+          message: "Invalid delay",
+          retryable: true,
+          retryAfterMs: 6_000,
+        },
+      },
+    });
+    const onTerminalError = vi.fn();
+    sendSpeechForTranslation(
+      { roomId: "room-1", text: "Olá" },
+      { onTerminalError },
+    );
+    expect(socketMock.emitted).toHaveLength(1);
+    expect(onTerminalError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ retryable: false }),
+    );
+  });
+
+  it("does not emit or handle late acknowledgements for an aborted room session", () => {
+    const controller = new AbortController();
+    controller.abort();
+    const onAcknowledged = vi.fn();
+    sendSpeechForTranslation(
+      { roomId: "room-1", text: "Olá" },
+      { signal: controller.signal, onAcknowledged },
+    );
+    expect(socketMock.emitted).toHaveLength(0);
+    expect(onAcknowledged).not.toHaveBeenCalled();
+  });
+
+  it("never retries a permanent provider rejection even with a retry delay", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push({
+        acknowledgement: {
+          result: "error",
+          error: {
+            code: "TRANSLATION_PROVIDER_ERROR",
+            message: "Unauthorized",
+            retryable: false,
+            retryAfterMs: 5_000,
+          },
+        },
+      });
+      const onTerminalError = vi.fn();
+      sendSpeechForTranslation(
+        { roomId: "room-1", text: "Olá" },
+        { onTerminalError },
+      );
+      vi.runAllTimers();
+      expect(socketMock.emitted).toHaveLength(1);
+      expect(onTerminalError).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ retryable: false }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares the retry budget across provider errors and acknowledgement timeouts", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push(
+        {
+          acknowledgement: {
+            result: "error",
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+            },
+          },
+        },
+        { error: new Error("timeout") },
+        {
+          acknowledgement: {
+            result: "error",
+            error: {
+              code: "TRANSLATION_PROVIDER_ERROR",
+              message: "Unavailable",
+              retryable: true,
+            },
+          },
+        },
+      );
+      const onTerminalError = vi.fn();
+      sendSpeechForTranslation(
+        { roomId: "room-1", text: "Olá", segmentId: "segment-1", revision: 2 },
+        { onTerminalError },
+      );
+      vi.runAllTimers();
+      expect(socketMock.emitted).toHaveLength(3);
+      expect(
+        socketMock.emitted.every(
+          ({ payload }) =>
+            (payload as { segmentId: string; revision: number }).segmentId ===
+              "segment-1" &&
+            (payload as { segmentId: string; revision: number }).revision === 2,
+        ),
+      ).toBe(true);
+      expect(onTerminalError).toHaveBeenCalledOnce();
+      expect(onTerminalError).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ retryable: false }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a scheduled retry after a provider acknowledgement when aborted", () => {
+    vi.useFakeTimers();
+    try {
+      socketMock.ackResults.push({
+        acknowledgement: {
+          result: "error",
+          error: {
+            code: "TRANSLATION_PROVIDER_ERROR",
+            message: "Unavailable",
+            retryable: true,
+          },
+        },
+      });
+      const controller = new AbortController();
+      const onTerminalError = vi.fn();
+      sendSpeechForTranslation(
+        { roomId: "room-1", text: "Olá" },
+        { signal: controller.signal, onTerminalError },
+      );
+      controller.abort();
+      vi.runAllTimers();
+      expect(socketMock.emitted).toHaveLength(1);
+      expect(onTerminalError).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a late acknowledgement after the room is aborted", () => {
+    socketMock.ackResults.push({
+      defer: true,
+      acknowledgement: { result: "ok" },
+    });
+    const controller = new AbortController();
+    const onAcknowledged = vi.fn();
+    sendSpeechForTranslation(
+      { roomId: "room-1", text: "Olá" },
+      { signal: controller.signal, onAcknowledged },
+    );
+    controller.abort();
+    socketMock.respondToDeferredAck();
+    expect(onAcknowledged).not.toHaveBeenCalled();
+  });
 
   it("preserva metadados e confirma a entrega versionada", () => {
     const onAcknowledged = vi.fn();
@@ -195,7 +480,7 @@ describe("speech-translation-service", () => {
     ]);
     expect(onTerminalError).toHaveBeenCalledWith(
       expect.objectContaining({ segmentId: "segment-1" }),
-      expect.objectContaining({ kind: "timeout", retryable: true }),
+      expect.objectContaining({ kind: "timeout", retryable: false }),
     );
     expect(getSpeechTranslationMetrics().at(-1)?.name).toBe("ack_timeout");
     expect(console.warn).toHaveBeenCalledWith(

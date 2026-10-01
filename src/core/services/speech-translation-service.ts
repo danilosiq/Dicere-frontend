@@ -102,6 +102,7 @@ export type SpeechTranslationDeliveryFailure = {
 };
 
 export type SpeechTranslationDeliveryOptions = {
+  signal?: AbortSignal;
   onAcknowledged?: (
     payload: TranslateSpeechPayload,
     acknowledgement: TranslateSpeechAcknowledgement,
@@ -143,8 +144,15 @@ function emitSpeechChunk(
   options: SpeechTranslationDeliveryOptions,
   attempt = 0,
 ): void {
+  if (options.signal?.aborted) return;
   const socket = getSocket();
   const emittedAt = getMonotonicNow();
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelRetry = () => {
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    options.signal?.removeEventListener("abort", cancelRetry);
+  };
+  options.signal?.addEventListener("abort", cancelRetry, { once: true });
 
   recordSpeechTranslationMetric({
     name: "emit",
@@ -157,6 +165,8 @@ function emitSpeechChunk(
   socket
     .timeout(SPEECH_TRANSLATION_ACK_TIMEOUT_MS)
     .emit("translate_speech", payload, (error, acknowledgement) => {
+      cancelRetry();
+      if (options.signal?.aborted) return;
       if (error) {
         if (attempt < SPEECH_TRANSLATION_MAX_RETRIES) {
           emitSpeechChunk(payload, options, attempt + 1);
@@ -175,13 +185,13 @@ function emitSpeechChunk(
         logSpeechTranslationFailure("warn", payload, {
           attempt: attempt + 1,
           code: "ACK_TIMEOUT",
-          retryable: true,
+          retryable: false,
         });
         options.onTerminalError?.(payload, {
           kind: "timeout",
           message:
             "O servidor não confirmou o recebimento deste trecho a tempo.",
-          retryable: true,
+          retryable: false,
         });
         return;
       }
@@ -198,6 +208,32 @@ function emitSpeechChunk(
       });
 
       if (acknowledgement?.result === "error") {
+        const providerError = acknowledgement.error;
+        const requestedDelay = providerError?.retryAfterMs;
+        const validDelay =
+          requestedDelay === undefined ||
+          (typeof requestedDelay === "number" &&
+            Number.isFinite(requestedDelay) &&
+            requestedDelay >= 0 &&
+            requestedDelay <= 5_000);
+        const canRetry =
+          providerError?.code === "TRANSLATION_PROVIDER_ERROR" &&
+          providerError.retryable === true &&
+          validDelay;
+        if (canRetry && attempt < SPEECH_TRANSLATION_MAX_RETRIES) {
+          retryTimer = setTimeout(
+            () => {
+              retryTimer = undefined;
+              options.signal?.removeEventListener("abort", cancelRetry);
+              emitSpeechChunk(payload, options, attempt + 1);
+            },
+            Math.max(500 * 2 ** attempt, requestedDelay ?? 0),
+          );
+          options.signal?.addEventListener("abort", cancelRetry, {
+            once: true,
+          });
+          return;
+        }
         logSpeechTranslationFailure("error", payload, {
           code: acknowledgement.error?.code ?? "SERVER_REJECTED",
           retryable: false,
@@ -223,6 +259,8 @@ export function sendSpeechForTranslation(
   options: SpeechTranslationDeliveryOptions = {},
 ) {
   const socket = getSocket();
+
+  if (options.signal?.aborted) return [];
 
   if (!socket.connected) {
     logSpeechTranslationFailure("warn", payload, {

@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   onText: null as null | ((text: string) => void),
@@ -110,6 +111,7 @@ describe("useSpeechTranslation with local transcripts", () => {
     act(() => mocks.onText?.("room one"));
     const [oldPayload, oldCallbacks] = mocks.sendSpeech.mock.calls[0];
     rerender({ roomId: "room-2" });
+    expect(oldCallbacks.signal.aborted).toBe(true);
     act(() => mocks.onText?.("room two"));
     expect(mocks.sendSpeech.mock.calls[1][0]).toMatchObject({
       roomId: "room-2",
@@ -120,6 +122,36 @@ describe("useSpeechTranslation with local transcripts", () => {
     );
     act(() => oldCallbacks.onAcknowledged(oldPayload));
     expect(mocks.sendSpeech).toHaveBeenCalledTimes(2);
+    expect(mocks.sendSpeech.mock.calls[1][1].signal.aborted).toBe(false);
+  });
+  it("aborts room-scoped work on unmount and survives StrictMode setup", () => {
+    mocks.sendSpeech.mockImplementation(() => undefined);
+    const { unmount } = renderHook(
+      () =>
+        useSpeechTranslation({
+          roomId: "room-1",
+          language: "PT-BR",
+          enabled: true,
+        }),
+      { wrapper: StrictMode },
+    );
+    act(() => mocks.onText?.("Olá"));
+    const signal = mocks.sendSpeech.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
+  });
+  it("delivers an already finalized phrase after mute", () => {
+    const { rerender } = renderHook(
+      ({ enabled }) =>
+        useSpeechTranslation({ roomId: "room-1", language: "PT-BR", enabled }),
+      { initialProps: { enabled: true } },
+    );
+    const capturedFinal = mocks.onText;
+    rerender({ enabled: false });
+    act(() => capturedFinal?.("Fala pronta"));
+    expect(mocks.sendSpeech).toHaveBeenCalledOnce();
+    expect(mocks.sendSpeech.mock.calls[0][1].signal.aborted).toBe(false);
   });
   it("preserves capture errors while translations arrive and delegates retry", () => {
     mocks.issue = {

@@ -136,6 +136,8 @@ export type TranslateSpeechAcknowledgement = {
   error?: {
     code: string;
     message: string;
+    retryable?: boolean;
+    retryAfterMs?: number;
   };
 };
 

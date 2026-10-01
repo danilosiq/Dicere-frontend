@@ -251,6 +251,93 @@ describe("SubtitleCamp", () => {
     expect(feed.childElementCount).toBe(3);
   });
 
+  it("promove uma legenda atrasada à janela sem perder a ordem de leitura", () => {
+    const translations = [
+      { ...makeTranslation(1, "Atrasada"), receivedOrder: 4 },
+      { ...makeTranslation(2, "Segunda"), receivedOrder: 1 },
+      { ...makeTranslation(3, "Terceira"), receivedOrder: 2 },
+      { ...makeTranslation(4, "Quarta"), receivedOrder: 3 },
+    ];
+    render(<SubtitleCamp {...defaultProps} translations={translations} />);
+    const feed = screen.getByLabelText("Legenda traduzida");
+    expect(Array.from(feed.children).map((item) => item.textContent)).toEqual([
+      "Atrasada ",
+      "Terceira ",
+      "Quarta ",
+    ]);
+    expect(screen.getByRole("status").textContent).toBe("Atrasada");
+  });
+
+  it("rola até a legenda atrasada, sem apenas posicionar o feed no fim", () => {
+    const translations = [
+      { ...makeTranslation(1, "Atrasada"), receivedOrder: 4 },
+      { ...makeTranslation(3, "Terceira"), receivedOrder: 2 },
+      { ...makeTranslation(4, "Quarta"), receivedOrder: 3 },
+    ];
+    const { rerender } = render(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={translations.map((translation) => ({
+          ...translation,
+          receivedOrder: translation.sequence,
+        }))}
+      />,
+    );
+    const feed = screen.getByLabelText("Legenda traduzida");
+    Object.defineProperty(feed, "scrollHeight", {
+      configurable: true,
+      value: 500,
+    });
+    Object.defineProperty(feed, "clientHeight", {
+      configurable: true,
+      value: 100,
+    });
+    feed.getBoundingClientRect = () => ({ top: 100, bottom: 200 }) as DOMRect;
+    const first = feed.firstElementChild as HTMLElement;
+    first.getBoundingClientRect = () => ({ top: 120, bottom: 145 }) as DOMRect;
+    rerender(<SubtitleCamp {...defaultProps} translations={translations} />);
+    expect(feed.scrollTop).toBe(20);
+  });
+
+  it("promove uma revisão aceita uma vez e não duplica a métrica no rerender", () => {
+    clearSpeechTranslationMetrics();
+    const previous = {
+      ...makeTranslation(1, "Provisória"),
+      segmentId: "segment-review",
+      traceId: "trace-review",
+      revision: 0,
+      status: "provisional" as const,
+      receivedOrder: 1,
+    };
+    const final = {
+      ...previous,
+      translatedText: "Final",
+      revision: 1,
+      status: "final" as const,
+      receivedOrder: 4,
+    };
+    const rest = [
+      { ...makeTranslation(2, "Segunda"), receivedOrder: 2 },
+      { ...makeTranslation(3, "Terceira"), receivedOrder: 3 },
+    ];
+    const { rerender } = render(
+      <SubtitleCamp {...defaultProps} translations={[previous, ...rest]} />,
+    );
+    rerender(
+      <SubtitleCamp {...defaultProps} translations={[final, ...rest]} />,
+    );
+    rerender(
+      <SubtitleCamp {...defaultProps} translations={[final, ...rest]} />,
+    );
+    expect(screen.getByRole("status").textContent).toBe("Final");
+    expect(
+      getSpeechTranslationMetrics().filter(
+        (metric) =>
+          metric.name === "render" && metric.segmentId === "segment-review",
+      ),
+    ).toHaveLength(2);
+  });
+
   it("separa as traduções em blocos e mantém separador textual", () => {
     render(
       <SubtitleCamp

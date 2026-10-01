@@ -43,3 +43,21 @@ Testes determinísticos cobrem esse ciclo com respostas de worker controladas.
 O teste Chromium usa recursos de mídia/worklet reais e microfone sintético, mas
 não executa Whisper, API ou DeepL. Ele valida lifecycle, não qualidade acústica,
 tradução, microfone físico, Windows ou o limite fim a fim de quatro segundos.
+
+## Legenda recebida fora de ordem
+
+O histórico mantém a sequência de fala, mas cada recebimento/revisão aceita
+ganha um ordinal local separado (`receivedOrder`), sem confiar no valor remoto.
+Duplicatas e revisões descartadas não promovem a legenda. A retenção guarda os
+100 recebimentos mais recentes e depois ordena pela sequência da fala; isso
+impede que um trecho antigo recuperado seja descartado imediatamente.
+
+A janela existente de três legendas seleciona as três chegadas/atualizações
+mais recentes e as apresenta na ordem de fala. Após 2/3/4 e recuperação de 1,
+mostra 1/3/4, anuncia 1 e rola o contêiner até sua linha. Não muda o visual,
+não rola a página e não transforma essa janela em arquivo permanente.
+Dados legados sem ordinal continuam usando a sequência como referência.
+
+Testes de composição socket/hook/React e geometria real de Chromium verificam
+apresentação, anúncio e retenção. Não comprovam precisão de transcrição/tradução,
+rede real ou SLA de voz; esses critérios permanecem independentes.

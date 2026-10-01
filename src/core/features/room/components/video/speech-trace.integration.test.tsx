@@ -62,6 +62,53 @@ function CaptionView({ roomId }: { roomId: string }) {
 describe("speech trace from socket to DOM", () => {
   beforeEach(() => clearSpeechTranslationMetrics());
 
+  it("presents a recovered old segment through the real hook and component", () => {
+    render(<CaptionView roomId="room-recovered" />);
+    const payload = (sequence: number, revision = 1) => ({
+      roomId: "room-recovered",
+      fromParticipantId: "participant-2",
+      fromParticipantName: "Maria",
+      originalText: "private speech",
+      translatedText: `Tradução ${sequence} revisão ${revision}`,
+      targetLanguage: "PT-BR",
+      traceId: "trace-recovered",
+      segmentId: `recovered-${sequence}`,
+      sequence,
+      revision,
+      status: "final",
+    });
+    const emit = (sequence: number, revision = 1) =>
+      act(() =>
+        socket.emitFromServer(
+          "voice_translation_received",
+          payload(sequence, revision),
+        ),
+      );
+    [2, 3, 4, 1].forEach((sequence) => emit(sequence));
+    const feed = screen.getByLabelText("Legenda traduzida");
+    expect(
+      Array.from(feed.children).map((item) =>
+        item.getAttribute("data-speech-sequence"),
+      ),
+    ).toEqual(["1", "3", "4"]);
+    expect(screen.getByRole("status").textContent).toBe("Tradução 1 revisão 1");
+    // A duplicate older caption must not steal the announcement or window.
+    emit(3);
+    expect(screen.getByRole("status").textContent).toBe("Tradução 1 revisão 1");
+    emit(3, 2);
+    expect(screen.getByRole("status").textContent).toBe("Tradução 3 revisão 2");
+    const metrics = getSpeechTranslationMetrics().filter(
+      (metric) => metric.name === "render",
+    );
+    expect(
+      metrics.filter((metric) => metric.segmentId === "recovered-1"),
+    ).toHaveLength(1);
+    expect(
+      metrics.filter((metric) => metric.segmentId === "recovered-3"),
+    ).toHaveLength(2);
+    expect(JSON.stringify(metrics)).not.toContain("private speech");
+  });
+
   it("preserves backend session and segment ids through receive and DOM insertion", () => {
     const sessionId = "a3467770-8950-43fe-b879-cae209bb1eac";
     const segmentId = `${sessionId}:0`;

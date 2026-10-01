@@ -263,8 +263,84 @@ describe("useSpeechTranslation with local transcripts", () => {
         translatedText: "Final",
         revision: 2,
         status: "final",
+        receivedOrder: 1,
       }),
     ]);
+  });
+
+  it("preserva ordem textual e marca a chegada tardia como a mais recente", () => {
+    const { result } = renderSpeechHook();
+    const received = (sequence: number, overrides = {}) => ({
+      roomId: "room-1",
+      fromParticipantId: "participant-2",
+      fromParticipantName: "Maria",
+      originalText: `Original ${sequence}`,
+      translatedText: `Tradução ${sequence}`,
+      targetLanguage: "PT-BR",
+      segmentId: `segment-${sequence}`,
+      sequence,
+      revision: 1,
+      status: "final",
+      traceId: `trace-${sequence}`,
+      ...overrides,
+    });
+    act(() => {
+      [2, 3, 4].forEach((sequence) =>
+        mocks.onTranslation?.(received(sequence)),
+      );
+      mocks.onTranslation?.(received(1, { receivedOrder: -999 }));
+    });
+    expect(result.current.translations.map(({ sequence }) => sequence)).toEqual(
+      [1, 2, 3, 4],
+    );
+    const recovered = result.current.translations[0];
+    expect(recovered.receivedOrder).toBeGreaterThan(
+      Math.max(
+        ...result.current.translations
+          .slice(1)
+          .map((item) => item.receivedOrder ?? 0),
+      ),
+    );
+    const originalOrder = recovered.receivedOrder;
+    act(() => mocks.onTranslation?.(received(1)));
+    expect(result.current.translations[0].receivedOrder).toBe(originalOrder);
+    act(() =>
+      mocks.onTranslation?.(
+        received(1, { revision: 2, translatedText: "Corrigida" }),
+      ),
+    );
+    expect(result.current.translations[0].receivedOrder).toBeGreaterThan(
+      originalOrder ?? 0,
+    );
+  });
+
+  it("reinicia a ordem de recepção ao trocar de sala", () => {
+    const { result, rerender } = renderSpeechHook();
+    const payload = {
+      roomId: "room-1",
+      fromParticipantId: "participant-2",
+      fromParticipantName: "Maria",
+      originalText: "Hello",
+      translatedText: "Olá",
+      targetLanguage: "PT-BR",
+      segmentId: "segment-1",
+      sequence: 1,
+      revision: 1,
+      status: "final",
+      traceId: "trace-1",
+    };
+    act(() => {
+      mocks.onTranslation?.(payload);
+      mocks.onTranslation?.({
+        ...payload,
+        segmentId: "segment-2",
+        sequence: 2,
+      });
+    });
+    rerender({ roomId: "room-2" });
+    expect(result.current.translations).toEqual([]);
+    act(() => mocks.onTranslation?.({ ...payload, roomId: "room-2" }));
+    expect(result.current.translations[0].receivedOrder).toBe(1);
   });
 
   it("limita o histórico recebido a cem segmentos", () => {
@@ -291,5 +367,44 @@ describe("useSpeechTranslation with local transcripts", () => {
     expect(result.current.translations).toHaveLength(100);
     expect(result.current.translations[0]?.sequence).toBe(6);
     expect(result.current.translations.at(-1)?.sequence).toBe(105);
+  });
+
+  it("retém segmento antigo recuperado entre as cem chegadas mais recentes", () => {
+    const { result } = renderSpeechHook();
+    act(() => {
+      for (let sequence = 2; sequence <= 101; sequence += 1) {
+        mocks.onTranslation?.({
+          roomId: "room-1",
+          fromParticipantId: "participant-2",
+          fromParticipantName: "Maria",
+          originalText: `Original ${sequence}`,
+          translatedText: `Tradução ${sequence}`,
+          targetLanguage: "PT-BR",
+          segmentId: `segment-${sequence}`,
+          sequence,
+          revision: 1,
+          status: "final",
+          traceId: `trace-${sequence}`,
+        });
+      }
+      mocks.onTranslation?.({
+        roomId: "room-1",
+        fromParticipantId: "participant-2",
+        fromParticipantName: "Maria",
+        originalText: "Original 1",
+        translatedText: "Tradução 1",
+        targetLanguage: "PT-BR",
+        segmentId: "segment-1",
+        sequence: 1,
+        revision: 1,
+        status: "final",
+        traceId: "trace-1",
+      });
+    });
+    expect(result.current.translations).toHaveLength(100);
+    expect(result.current.translations[0]?.sequence).toBe(1);
+    expect(
+      result.current.translations.some(({ sequence }) => sequence === 2),
+    ).toBe(false);
   });
 });

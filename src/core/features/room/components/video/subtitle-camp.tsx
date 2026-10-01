@@ -21,7 +21,11 @@ import {
   recordSpeechTranslationMetric,
 } from "@/core/services/speech-translation-service";
 import { CircleAlert } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
+import {
+  scrollToCaption,
+  selectCaptionPresentation,
+} from "./subtitle-presentation";
 
 export type SubtitleCampProps = {
   captionIssue: CaptionIssue | null;
@@ -42,8 +46,8 @@ export function SubtitleCamp({
 }: SubtitleCampProps) {
   const historyRef = useRef<HTMLDivElement>(null);
   const renderedRef = useRef(new Set<string>());
-  const visibleTranslations = translations.slice(-3);
-  const latestTranslation = translations[translations.length - 1];
+  const { visibleTranslations, latestTranslation } =
+    selectCaptionPresentation(translations);
   const issueButtonClassName = captionIssue
     ? cn(
         "shrink-0",
@@ -53,10 +57,10 @@ export function SubtitleCamp({
       )
     : undefined;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const history = historyRef.current;
-    if (history) history.scrollTop = history.scrollHeight;
-  }, [translations]);
+    if (history) scrollToCaption(history, latestTranslation);
+  }, [latestTranslation]);
 
   useLayoutEffect(() => {
     const history = historyRef.current;
@@ -160,6 +164,7 @@ export function SubtitleCamp({
             key={`${translation.fromParticipantId}:${translation.segmentId ?? translation.sequence}`}
             data-speech-segment-id={translation.segmentId}
             data-speech-participant-id={translation.fromParticipantId}
+            data-speech-sequence={translation.sequence}
           >
             <Typography color="white">{translation.translatedText} </Typography>
           </p>

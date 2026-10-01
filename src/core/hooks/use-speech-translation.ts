@@ -23,6 +23,7 @@ export const SPEECH_PREVIOUS_CONTEXT_LIMIT = 250;
 export type CaptionIssue = LocalCaptionIssue;
 export type ReceivedVoiceTranslation = VoiceTranslationReceivedPayload & {
   sequence: number;
+  receivedOrder?: number;
 };
 
 type NormalizedReceivedVoiceTranslation = ReceivedVoiceTranslation & {
@@ -30,6 +31,7 @@ type NormalizedReceivedVoiceTranslation = ReceivedVoiceTranslation & {
   revision: number;
   status: SpeechSegmentStatus;
   traceId: string;
+  receivedOrder: number;
 };
 
 let fallbackIdentifierSequence = 0;
@@ -99,6 +101,7 @@ function normalizeReceivedTranslation(
     revision: translation.revision ?? 1,
     status: translation.status ?? "final",
     traceId: translation.traceId?.trim() || segmentId,
+    receivedOrder: fallbackSequence,
   };
 }
 
@@ -129,8 +132,9 @@ function mergeReceivedTranslation(
   }
 
   return [...current, incoming]
-    .sort((left, right) => left.sequence - right.sequence)
-    .slice(-SPEECH_TRANSLATION_HISTORY_LIMIT);
+    .sort((left, right) => right.receivedOrder - left.receivedOrder)
+    .slice(0, SPEECH_TRANSLATION_HISTORY_LIMIT)
+    .sort((left, right) => left.sequence - right.sequence);
 }
 
 export function useSpeechTranslation({

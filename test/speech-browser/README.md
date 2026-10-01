@@ -38,6 +38,20 @@ da stream separada da chamada. Também roda no CI, sem carregar Whisper,
 contatar API/DeepL ou criar sala. Resposta controlada não comprova qualidade
 do reconhecedor; a matriz real abaixo permanece independente.
 
+## Visibilidade de legendas recuperadas
+
+`npm run test:subtitle-visibility` transpila o helper real de apresentação e
+exercita sua seleção e rolagem com layout real no Chromium, em loopback. Após
+2/3/4 e chegada tardia de 1, a janela mostra 1/3/4 em ordem de fala; a primeira
+linha do trecho recuperado fica dentro do viewport, sem rolar a página. IDs com
+aspas também são exercitados. O fechamento do navegador é limitado e não aceita
+encerramento forçado. Roda no CI antes do build, sem API, áudio ou modelo.
+
+Vitest cobre separadamente a composição socket/hook/React, ordem local de
+recebimento, retenção de 100 trechos recentes, duplicatas/revisões, anúncio
+acessível e métricas. A janela visual continua limitada a três trechos; não é
+arquivo permanente de conversa nem comprovação de qualidade ou latência de voz.
+
 ## Ensaio fim a fim
 
 Este executor abre duas sessões reais do Dicere, cria uma sala exclusiva,

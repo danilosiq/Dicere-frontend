@@ -68,6 +68,9 @@ jobs:
       - name: Verificar drenagem local de segmento fechado após mute
         run: npm run test:local-speech-lifecycle
 
+      - name: Verificar visibilidade de legenda recuperada fora de ordem
+        run: npm run test:subtitle-visibility
+
       - name: Gerar build
         run: npm run build
 

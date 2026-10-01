@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:speech-browser": "node test/speech-browser/run.mjs",
     "test:speech-microphone": "node test/speech-browser/microphone-lifecycle.mjs",
-    "test:local-speech-lifecycle": "node test/speech-browser/local-engine-lifecycle.mjs"
+    "test:local-speech-lifecycle": "node test/speech-browser/local-engine-lifecycle.mjs",
+    "test:subtitle-visibility": "node test/speech-browser/subtitle-visibility.mjs"
   },
   "engines": {
     "node": ">=22.13.0"

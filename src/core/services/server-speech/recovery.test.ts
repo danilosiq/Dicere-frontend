@@ -75,6 +75,7 @@ describe("RecoveringSpeechEngine", () => {
   it.each([
     "STT_PERMISSION_DENIED",
     "STT_LANGUAGE_UNSUPPORTED",
+    "STT_TRANSLATION_QUOTA_EXCEEDED",
     "STT_FORBIDDEN",
     "STT_INVALID_RESPONSE",
     "STT_UTTERANCE_TOO_LONG",

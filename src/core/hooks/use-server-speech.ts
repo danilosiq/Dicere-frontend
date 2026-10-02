@@ -5,6 +5,8 @@ import { RecoveringSpeechEngine } from "@/core/services/server-speech/recovery";
 import type { LocalCaptionIssue } from "./use-local-speech";
 
 function messageFor(code: string) {
+  if (code === "STT_TRANSLATION_QUOTA_EXCEEDED")
+    return "O limite de tradução da DeepL foi atingido. O administrador precisa restabelecer a cota.";
   if (code === "STT_LANGUAGE_UNSUPPORTED")
     return "Selecione Português, Inglês, Espanhol ou Chinês como idioma falado.";
   if (code === "STT_PERMISSION_DENIED")
@@ -57,7 +59,10 @@ export function useServerSpeech({
           message: recovering
             ? `Reconectando a transcrição… Tentativa ${recoveryAttempt}/3. O trecho interrompido não será reenviado.`
             : messageFor(code),
-          retryable: !recovering && code !== "STT_LANGUAGE_UNSUPPORTED",
+          retryable:
+            !recovering &&
+            code !== "STT_LANGUAGE_UNSUPPORTED" &&
+            code !== "STT_TRANSLATION_QUOTA_EXCEEDED",
         });
         console.error("[Dicere][ServerSpeech]", {
           code,

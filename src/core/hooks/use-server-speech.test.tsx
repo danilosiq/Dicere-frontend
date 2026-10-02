@@ -30,6 +30,32 @@ function setup() {
 }
 
 describe("useServerSpeech recovery", () => {
+  it("explains translation quota exhaustion without retrying the microphone", () => {
+    const { result } = setup();
+    act(() =>
+      mocks.sessions[0].options.onError(
+        "STT_TRANSLATION_QUOTA_EXCEEDED",
+        false,
+        0,
+      ),
+    );
+    expect(result.current.captionIssue).toMatchObject({
+      status: "blocked",
+      retryable: false,
+    });
+    expect(result.current.captionIssue?.message).toContain("DeepL");
+    expect(result.current.captionIssue?.message).toContain("cota");
+    act(() => result.current.retryRecognition());
+    expect(mocks.sessions).toHaveLength(1);
+    expect(console.error).toHaveBeenCalledWith(
+      "[Dicere][ServerSpeech]",
+      expect.objectContaining({
+        code: "STT_TRANSLATION_QUOTA_EXCEEDED",
+        locale: "pt-BR",
+        recovering: false,
+      }),
+    );
+  });
   it("shows reconnecting without allowing overlapping manual attempts", () => {
     const { result } = setup();
     act(() => mocks.sessions[0].options.onError("STT_TIMEOUT", true, 1));

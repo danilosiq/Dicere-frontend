@@ -23,6 +23,7 @@ let room;
 let browser;
 let owned;
 const errors = [];
+const rendered = [];
 async function select(page, label, language) {
   await page.getByRole("button", { name: label, exact: true }).click();
   const options = page.getByRole("option");
@@ -106,6 +107,9 @@ try {
       };
     });
     const page = await context.newPage();
+    await page.exposeFunction("dicereRendered", (event) =>
+      rendered.push(event.segmentId),
+    );
     page.setDefaultTimeout(20000);
     page.on("pageerror", (error) => errors.push(error.name));
     pages.push(page);
@@ -128,6 +132,7 @@ try {
   await first.getByRole("button", { name: "Confirmar", exact: true }).click();
   room = (await (await created).json()).data;
   await first.waitForURL("**/room/*");
+  await second.setViewportSize({ width: 390, height: 844 });
   await second.goto(frontend);
   await second
     .getByRole("button", { name: "Entrar na sala", exact: true })
@@ -238,11 +243,14 @@ try {
       );
       await feed.focus();
       await first.keyboard.press("End");
-      await first.waitForFunction(
-        () =>
-          document.querySelector('[aria-label="Legenda traduzida"]').scrollTop >
-          0,
-      );
+      await first.waitForFunction(() => {
+        const element = document.querySelector(
+          '[aria-label="Legenda traduzida"]',
+        );
+        return (
+          element.scrollTop >= element.scrollHeight - element.clientHeight - 1
+        );
+      });
       if (process.env.UI_TEST_EVIDENCE_DIR)
         await first.screenshot({
           path: `${process.env.UI_TEST_EVIDENCE_DIR}/${viewport.width}-${dark ? "dark" : "light"}.png`,
@@ -250,6 +258,7 @@ try {
     }
   }
   assert.deepEqual(errors, []);
+  assert.equal(new Set(rendered).size, nextSequence - 1);
   console.log(
     JSON.stringify({
       suite: "room-language-flow",

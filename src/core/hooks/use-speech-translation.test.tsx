@@ -1,5 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
+import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   onText: null as null | ((text: string) => void),
@@ -15,11 +17,21 @@ const mocks = vi.hoisted(() => ({
   onTranslation: null as null | ((payload: unknown) => void),
   onSocketError: null as null | ((message: string) => void),
   unsubscribe: vi.fn(),
+  localSpeech: vi.fn(),
+  serverSpeech: vi.fn(),
 }));
 vi.mock("./use-local-speech", () => ({
-  useLocalSpeech: ({ onText }: { onText: (text: string) => void }) => {
+  useLocalSpeech: (options: { onText: (text: string) => void }) => {
+    const { onText } = options;
+    mocks.localSpeech(options);
     mocks.onText = onText;
     return { captionIssue: mocks.issue, retryRecognition: mocks.retry };
+  },
+}));
+vi.mock("./use-server-speech", () => ({
+  useServerSpeech: (options: unknown) => {
+    mocks.serverSpeech(options);
+    return { captionIssue: null, retryRecognition: vi.fn() };
   },
 }));
 vi.mock("@/core/services/speech-translation-service", () => ({
@@ -56,7 +68,40 @@ describe("useSpeechTranslation with local transcripts", () => {
       options?.onAcknowledged?.(payload),
     );
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it.each(DEEPL_TARGET_LANGUAGES)(
+    "routes %s and sends text with the selected source language",
+    (language) => {
+      const pilot = "550e8400-e29b-41d4-a716-446655440000";
+      vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
+      renderHook(() =>
+        useSpeechTranslation({ roomId: pilot, language, enabled: true }),
+      );
+      expect(mocks.localSpeech).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          enabled: language !== "PT-BR",
+          locale: toSpeechRecognitionLocale(language),
+        }),
+      );
+      expect(mocks.serverSpeech).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: language === "PT-BR" }),
+      );
+      if (language !== "PT-BR") {
+        act(() => mocks.onText?.("Recognized text"));
+        expect(mocks.sendSpeech).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            text: "Recognized text",
+            sourceLanguage: language,
+          }),
+          expect.any(Object),
+        );
+      }
+    },
+  );
   it("sends each final phrase with identity, order and previous context", () => {
     renderSpeechHook();
     act(() => mocks.onText?.("Olá"));

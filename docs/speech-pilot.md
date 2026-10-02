@@ -20,9 +20,15 @@ Outras salas permanecem no caminho anterior; não executar os dois motores junto
 
 Antes de capturar áudio, o participante precisa aceitar o aviso existente em
 cada sala. O candidato reconhece somente PT-BR; idiomas de destino continuam
-independentes. Outras origens mostram a limitação sem transcrever como português.
-Danilo autorizou a primeira entrega com origem PT-BR em 24/09/2026. Isso não
-aprova automaticamente semântica, disponibilidade, capacidade ou os 4 segundos.
+independentes. Em 01/10/2026, Danilo solicitou a liberação imediata das demais
+origens: todas as opções do seletor usam o reconhecedor Whisper multilíngue
+local, inclusive em salas piloto quando o idioma selecionado não é PT-BR.
+O áudio desses idiomas não é enviado ao candidato PT-BR e o texto segue para
+a tradução na API com o idioma de origem correto. A captura local não exige
+o aviso de envio de áudio ao servidor; retornar ao candidato PT-BR continua
+exigindo o consentimento da sala. Nunca ativar os dois motores simultaneamente.
+A liberação substitui a restrição de origem da primeira entrega autorizada em
+24/09/2026; não aprova automaticamente qualidade, capacidade ou os 4 segundos.
 
 ## Sequência operacional
 

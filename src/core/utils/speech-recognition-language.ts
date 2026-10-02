@@ -38,18 +38,20 @@ const SPEECH_RECOGNITION_LOCALES: Record<DeepLTargetLanguage, string> = {
 };
 
 /**
- * The first production speech release is validated only for Brazilian
- * Portuguese. Destination languages remain independent and are still handled
- * by the translation service.
+ * All selector languages can use the multilingual local recognizer. This is
+ * availability, not a claim that every language passes the quality/SLA gates.
+ * The internal pilot recognizer remains restricted separately to PT-BR.
  */
-export const SUPPORTED_SPEECH_SOURCE_LANGUAGES = ["PT-BR"] as const;
+export const SUPPORTED_SPEECH_SOURCE_LANGUAGES = Object.keys(
+  SPEECH_RECOGNITION_LOCALES,
+) as DeepLTargetLanguage[];
 
 export function isSpeechSourceLanguageSupported(language: DeepLTargetLanguage) {
-  return language === SUPPORTED_SPEECH_SOURCE_LANGUAGES[0];
+  return Object.hasOwn(SPEECH_RECOGNITION_LOCALES, language);
 }
 
 export function speechSourceLanguageMessage(language: DeepLTargetLanguage) {
-  return `A transcrição de voz em ${language} ainda não está disponível. Selecione PT-BR em “Idioma falado”.`;
+  return `O idioma de voz ${language} não é reconhecido. Selecione um idioma disponível em “Idioma falado”.`;
 }
 
 export function toSpeechRecognitionLocale(language: DeepLTargetLanguage) {
@@ -57,7 +59,6 @@ export function toSpeechRecognitionLocale(language: DeepLTargetLanguage) {
 }
 
 export function getDefaultSpeechLanguage(): DeepLTargetLanguage {
-  // PT-BR is the only speech source validated for the first release. Do not
-  // infer an unsupported browser language and start the low-quality fallback.
+  // Preserve the existing initial selection; users can select other sources.
   return "PT-BR";
 }

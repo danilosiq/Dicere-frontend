@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallSession } from "@/core/hooks/use-call-session";
+import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import type { DeepLTargetLanguage } from "@/core/components";
 const mocks = vi.hoisted(() => ({
   speech: vi.fn(),
   subtitle: vi.fn(),
@@ -68,25 +70,42 @@ describe("server speech privacy gate", () => {
     expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
   });
 
-  it("blocks unvalidated spoken languages without starting capture", () => {
-    const view = render(<VideoSection call={call} />);
-    const subtitleProps = mocks.subtitle.mock.calls.at(-1)?.[0] as {
-      onLanguageChange: (language: "DE") => void;
-    };
+  it.each(DEEPL_TARGET_LANGUAGES)(
+    "enables voice for the selected language %s",
+    (language) => {
+      const view = render(<VideoSection call={call} />);
+      const subtitleProps = mocks.subtitle.mock.calls.at(-1)?.[0] as {
+        onLanguageChange: (language: DeepLTargetLanguage) => void;
+      };
 
-    act(() => subtitleProps.onLanguageChange("DE"));
-    view.rerender(<VideoSection call={call} />);
+      act(() => subtitleProps.onLanguageChange(language));
+      view.rerender(<VideoSection call={call} />);
 
+      expect(mocks.speech).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: true, language }),
+      );
+      expect(mocks.subtitle.mock.calls.at(-1)?.[0]).toMatchObject({
+        captionIssue: null,
+      });
+    },
+  );
+
+  it("uses local multilingual capture in a pilot and requires consent again for PT-BR", () => {
+    const pilot = "550e8400-e29b-41d4-a716-446655440000";
+    vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
+    mocks.room = { id: pilot, participants: [] };
+    render(<VideoSection call={call} />);
+    expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
+    act(() => mocks.subtitle.mock.calls.at(-1)?.[0].onLanguageChange("EN"));
+    expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
+    expect(mocks.speech).toHaveBeenLastCalledWith(
+      expect.objectContaining({ language: "EN", enabled: true }),
+    );
+    act(() => mocks.subtitle.mock.calls.at(-1)?.[0].onLanguageChange("PT-BR"));
+    expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
     expect(mocks.speech).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: false }),
     );
-    expect(mocks.subtitle.mock.calls.at(-1)?.[0]).toMatchObject({
-      captionIssue: {
-        status: "blocked",
-        retryable: false,
-        message: expect.stringContaining("Selecione PT-BR"),
-      },
-    });
   });
   it("keeps capture off until consent and asks again for another room", () => {
     const firstPilot = "550e8400-e29b-41d4-a716-446655440000";

@@ -22,11 +22,12 @@ export function VideoSection({ call }: { call: CallSession }) {
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
   const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
-  const needsSpeechConsent =
-    isServerSpeechEnabled(room?.id) && acceptedSpeechRoom !== room?.id;
   const [speechLanguage, setSpeechLanguage] = useState<DeepLTargetLanguage>(
     getDefaultSpeechLanguage,
   );
+  const needsSpeechConsent =
+    isServerSpeechEnabled(room?.id, speechLanguage) &&
+    acceptedSpeechRoom !== room?.id;
   const speechSourceSupported = isSpeechSourceLanguageSupported(speechLanguage);
   const speechTranslation = useSpeechTranslation({
     // Leaving cancels the session; mute only finishes already closed speech.

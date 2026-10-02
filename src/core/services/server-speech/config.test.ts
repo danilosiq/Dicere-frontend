@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { isServerSpeechEnabled } from "./config";
+import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
 
 const pilot = "550e8400-e29b-41d4-a716-446655440000";
 const other = "550e8400-e29b-41d4-a716-446655440001";
@@ -9,6 +10,14 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", "");
 });
 afterEach(() => vi.unstubAllEnvs());
+
+it.each(DEEPL_TARGET_LANGUAGES)(
+  "routes the pilot locale %s to its appropriate engine",
+  (language) => {
+    vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
+    expect(isServerSpeechEnabled(pilot, language)).toBe(language === "PT-BR");
+  },
+);
 
 it("keeps rooms on the existing engine unless explicitly enabled", () => {
   expect(isServerSpeechEnabled(pilot)).toBe(false);

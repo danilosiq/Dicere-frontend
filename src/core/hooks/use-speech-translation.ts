@@ -366,7 +366,7 @@ export function useSpeechTranslation({
     previousFinalContextRef.current = "";
   }, [language]);
 
-  const serverSpeech = isServerSpeechEnabled(roomId);
+  const serverSpeech = isServerSpeechEnabled(roomId, language);
   const localRecognition = useLocalSpeech({
     roomId,
     locale: toSpeechRecognitionLocale(language),

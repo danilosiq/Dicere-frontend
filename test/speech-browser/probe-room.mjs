@@ -81,7 +81,9 @@ export async function probeRoom(apiUrl, targetLanguage) {
 }
 
 export async function speechAck(socket, event, payload) {
-  const response = await socket.timeout(5000).emitWithAck(event, payload);
+  const response = await socket
+    .timeout(event === "speech_finish" ? 5500 : 1500)
+    .emitWithAck(event, payload);
   if (response.result !== "ok")
     throw new Error(response.code ?? "PROBE_ACK_FAILED");
   return response;

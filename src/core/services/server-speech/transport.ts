@@ -24,7 +24,7 @@ export async function requestSpeech(
 ) {
   const socket = getSocket();
   if (!socket.connected) throw new Error("STT_DISCONNECTED");
-  const timeout = event === "speech_finish" ? 3500 : 1500;
+  const timeout = event === "speech_finish" ? 5500 : 1500;
   let response: unknown;
   try {
     response = await socket.timeout(timeout).emitWithAck(event, payload);

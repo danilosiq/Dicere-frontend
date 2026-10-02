@@ -11,6 +11,7 @@ import { cn } from "@/core/utils/cn";
 import { normalizeRoomCode } from "@/core/@types/room";
 import { SelectorCountry } from "@/core/components/selector-country";
 import type { DeepLTargetLanguage } from "@/core/components/selector-country";
+import { getSelectableLanguage } from "@/core/components/selector-country/countryList";
 
 import { joinRoomSchema, type JoinRoomSchemaType } from "./schema";
 
@@ -20,6 +21,7 @@ export type JoinRoomFormProps = {
   initialRoomCode?: string;
   initialName?: string;
   initialTargetLanguage?: DeepLTargetLanguage;
+  initialSpokenLanguage?: DeepLTargetLanguage;
   resumeOnly?: boolean;
   className?: string;
 };
@@ -30,6 +32,7 @@ export function JoinRoomForm({
   initialRoomCode,
   initialName,
   initialTargetLanguage,
+  initialSpokenLanguage,
   resumeOnly = false,
   className,
 }: JoinRoomFormProps) {
@@ -45,7 +48,8 @@ export function JoinRoomForm({
       roomCode: initialRoomCode ? normalizeRoomCode(initialRoomCode) : "",
       name: initialName ?? "",
       password: "",
-      targetLanguage: initialTargetLanguage,
+      targetLanguage: getSelectableLanguage(initialTargetLanguage),
+      spokenLanguage: getSelectableLanguage(initialSpokenLanguage),
     },
   });
 
@@ -54,9 +58,16 @@ export function JoinRoomForm({
       roomCode: initialRoomCode ? normalizeRoomCode(initialRoomCode) : "",
       name: initialName ?? "",
       password: "",
-      targetLanguage: initialTargetLanguage,
+      targetLanguage: getSelectableLanguage(initialTargetLanguage),
+      spokenLanguage: getSelectableLanguage(initialSpokenLanguage),
     });
-  }, [initialName, initialRoomCode, initialTargetLanguage, reset]);
+  }, [
+    initialName,
+    initialRoomCode,
+    initialTargetLanguage,
+    initialSpokenLanguage,
+    reset,
+  ]);
 
   async function handleJoinRoom(data: JoinRoomSchemaType) {
     await onSubmit?.(data);
@@ -94,16 +105,28 @@ export function JoinRoomForm({
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
+              label="Idioma que deseja receber as traduções"
+              error={errors.targetLanguage?.message}
+              disabled={isSubmitting}
               placeholder="Idioma das traduções recebidas"
               onSelect={field.onChange}
             />
           )}
         />
-        {errors.targetLanguage?.message && (
-          <p className="text-error text-sm" role="alert">
-            {errors.targetLanguage.message}
-          </p>
-        )}
+        <Controller
+          control={control}
+          name="spokenLanguage"
+          render={({ field }) => (
+            <SelectorCountry
+              value={field.value}
+              label="Idioma que você irá falar na chamada"
+              placeholder="Selecione seu idioma falado"
+              error={errors.spokenLanguage?.message}
+              disabled={isSubmitting}
+              onSelect={field.onChange}
+            />
+          )}
+        />
         <InputText
           label="Senha"
           placeholder="Password"

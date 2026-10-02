@@ -52,7 +52,15 @@ export async function verifySpeechBackend(baseUrl, request = fetch) {
     }
     const document = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     const contract = document?.["x-speech-release"];
+    const preference =
+      document?.["x-websocket-events"]?.set_translation_language;
     if (
+      preference?.acknowledgement?.success?.result !== "ok" ||
+      !["PT-BR", "EN", "ES", "ZH-HANS"].every((language) =>
+        preference?.payload?.properties?.targetLanguage?.enum?.includes(
+          language,
+        ),
+      ) ||
       !Object.entries(expected).every(
         ([key, value]) => contract?.[key] === value,
       ) ||

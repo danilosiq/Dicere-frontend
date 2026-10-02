@@ -90,7 +90,7 @@ describe("speech trace from socket to DOM", () => {
       Array.from(feed.children).map((item) =>
         item.getAttribute("data-speech-sequence"),
       ),
-    ).toEqual(["1", "3", "4"]);
+    ).toEqual(["1", "2", "3", "4"]);
     expect(screen.getByRole("status").textContent).toBe("Tradução 1 revisão 1");
     // A duplicate older caption must not steal the announcement or window.
     emit(3);

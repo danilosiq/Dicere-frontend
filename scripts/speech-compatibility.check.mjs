@@ -16,12 +16,23 @@ const contract = {
 };
 const document = {
   "x-speech-release": contract,
-  "x-websocket-events": Object.fromEntries(
-    ["ready", "start", "chunk", "finish", "cancel"].map((event) => [
+  "x-websocket-events": Object.fromEntries([
+    ...["ready", "start", "chunk", "finish", "cancel"].map((event) => [
       `speech_${event}`,
       {},
     ]),
-  ),
+    [
+      "set_translation_language",
+      {
+        payload: {
+          properties: {
+            targetLanguage: { enum: ["PT-BR", "EN", "ES", "ZH-HANS"] },
+          },
+        },
+        acknowledgement: { success: { result: "ok" } },
+      },
+    ],
+  ]),
 };
 const respond =
   (body = document, status = 200) =>
@@ -64,6 +75,16 @@ for (const [name, body] of [
     },
   ],
   ["missing events", { ...document, "x-websocket-events": {} }],
+  [
+    "missing preference event",
+    {
+      ...document,
+      "x-websocket-events": {
+        ...document["x-websocket-events"],
+        set_translation_language: undefined,
+      },
+    },
+  ],
 ]) {
   test(`blocks ${name}`, async () => {
     await assert.rejects(

@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { SelectorCountry } from "@/core/components";
+import { isDeepLTargetLanguage } from "@/core/components/selector-country/countryList";
 import type { DeepLTargetLanguage } from "@/core/components";
 import { IconButton } from "@/core/components/icon-button";
 import { Column, Row } from "@/core/components/layout";
@@ -31,6 +32,9 @@ export type SubtitleCampProps = {
   captionIssue: CaptionIssue | null;
   language: DeepLTargetLanguage;
   targetLanguage?: string | null;
+  onTargetLanguageChange?: (language: DeepLTargetLanguage) => void;
+  isUpdatingTargetLanguage?: boolean;
+  targetLanguageError?: string;
   translations: ReceivedVoiceTranslation[];
   onLanguageChange: (language: DeepLTargetLanguage) => void;
   retryRecognition: () => void;
@@ -40,12 +44,16 @@ export function SubtitleCamp({
   captionIssue,
   language,
   targetLanguage,
+  onTargetLanguageChange,
+  isUpdatingTargetLanguage,
+  targetLanguageError,
   translations,
   onLanguageChange,
   retryRecognition,
 }: SubtitleCampProps) {
   const historyRef = useRef<HTMLDivElement>(null);
   const renderedRef = useRef(new Set<string>());
+  const followLatestRef = useRef(true);
   const { visibleTranslations, latestTranslation } =
     selectCaptionPresentation(translations);
   const issueButtonClassName = captionIssue
@@ -59,8 +67,13 @@ export function SubtitleCamp({
 
   useLayoutEffect(() => {
     const history = historyRef.current;
-    if (history) scrollToCaption(history, latestTranslation);
-  }, [latestTranslation]);
+    if (!translations.length) {
+      followLatestRef.current = true;
+      renderedRef.current.clear();
+    }
+    if (history && followLatestRef.current)
+      scrollToCaption(history, latestTranslation);
+  }, [latestTranslation, translations.length]);
 
   useLayoutEffect(() => {
     const history = historyRef.current;
@@ -93,31 +106,34 @@ export function SubtitleCamp({
         ...(received ? { durationMs: renderedAt - received.observedAt } : {}),
       });
       renderedRef.current.add(key);
-      if (renderedRef.current.size > 100) {
-        const oldest = renderedRef.current.values().next().value;
-        if (oldest) renderedRef.current.delete(oldest);
-      }
     }
   }, [visibleTranslations]);
 
   return (
-    <Column className="absolute top-0 left-0 z-10 h-full min-h-0 w-[35%] rounded-t-md bg-linear-to-r from-black to-transparent">
+    <Column className="absolute top-0 bottom-0 left-0 z-10 min-h-0 w-[55%] rounded-t-md bg-linear-to-r from-black to-transparent sm:w-[40%] lg:w-[35%]">
       <Row className="w-full shrink-0 items-center gap-2 rounded-t-lg bg-white p-4 dark:bg-gray-800">
-        <div className="min-w-0 flex-1">
-          <Typography size="xs" className="mb-1 block">
-            Idioma falado
-          </Typography>
+        <Column className="min-w-0 flex-1">
           <SelectorCountry
             value={language}
+            label="Seu idioma falado"
             placeholder="Idioma falado"
             onSelect={onLanguageChange}
           />
-          {targetLanguage && (
-            <Typography size="xs" className="mt-1 block">
-              Você lê: {targetLanguage}
-            </Typography>
-          )}
-        </div>
+          <Column className="mt-2">
+            <SelectorCountry
+              value={
+                isDeepLTargetLanguage(targetLanguage)
+                  ? targetLanguage
+                  : undefined
+              }
+              label="Idioma que está traduzindo"
+              placeholder={targetLanguage ?? "Selecione o idioma"}
+              onSelect={onTargetLanguageChange ?? (() => {})}
+              disabled={!onTargetLanguageChange || isUpdatingTargetLanguage}
+              error={targetLanguageError}
+            />
+          </Column>
+        </Column>
 
         {captionIssue?.retryable && (
           <IconButton
@@ -155,12 +171,18 @@ export function SubtitleCamp({
 
       <div
         aria-label="Legenda traduzida"
-        className="flex min-h-0 flex-1 scrollbar-none flex-col gap-4 overflow-y-auto overscroll-contain px-4 [&::-webkit-scrollbar]:hidden"
+        className="flex min-h-0 flex-1 [scrollbar-width:none] flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4 [&::-webkit-scrollbar]:hidden"
+        onScroll={(event) => {
+          const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+          followLatestRef.current =
+            scrollHeight - scrollTop - clientHeight <= 48;
+        }}
         ref={historyRef}
         tabIndex={0}
       >
         {visibleTranslations.map((translation) => (
           <p
+            className="shrink-0 wrap-break-word whitespace-pre-wrap"
             key={`${translation.fromParticipantId}:${translation.segmentId ?? translation.sequence}`}
             data-speech-segment-id={translation.segmentId}
             data-speech-participant-id={translation.fromParticipantId}

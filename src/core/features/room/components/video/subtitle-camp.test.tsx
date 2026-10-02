@@ -39,6 +39,44 @@ const defaultProps = {
 };
 
 describe("SubtitleCamp", () => {
+  it("permite mudar o destino separadamente e bloqueia enquanto confirma", () => {
+    const onTargetLanguageChange = vi.fn();
+    const onLanguageChange = vi.fn();
+    const view = render(
+      <SubtitleCamp
+        {...defaultProps}
+        language="ES"
+        targetLanguage="PT-BR"
+        onLanguageChange={onLanguageChange}
+        onTargetLanguageChange={onTargetLanguageChange}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Idioma que está traduzindo" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Inglês$/ }));
+    expect(onTargetLanguageChange).toHaveBeenCalledWith("EN");
+    expect(onLanguageChange).not.toHaveBeenCalled();
+    view.rerender(
+      <SubtitleCamp
+        {...defaultProps}
+        language="ES"
+        targetLanguage="PT-BR"
+        onTargetLanguageChange={onTargetLanguageChange}
+        isUpdatingTargetLanguage
+      />,
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Idioma que está traduzindo",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Seu idioma falado" }).textContent,
+    ).toContain("Espanhol");
+  });
   it("registra a renderização da legenda no DOM uma vez por trecho e revisão", () => {
     clearSpeechTranslationMetrics();
     recordSpeechTranslationMetric({
@@ -83,14 +121,13 @@ describe("SubtitleCamp", () => {
         onLanguageChange={onLanguageChange}
       />,
     );
-    expect(screen.getByText("Idioma falado")).toBeTruthy();
-    expect(screen.getByText("Você lê: IT")).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Selecionar idioma: Português" }),
-    );
+    expect(screen.getByText("Seu idioma falado")).toBeTruthy();
+    expect(screen.getByText("Idioma que está traduzindo")).toBeTruthy();
+    expect(screen.getByText("IT")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Seu idioma falado" }));
     fireEvent.click(screen.getByRole("option", { name: /Espanhol$/ }));
     expect(onLanguageChange).toHaveBeenCalledWith("ES");
-    expect(screen.getByText("Você lê: IT")).toBeTruthy();
+    expect(screen.getByText("IT")).toBeTruthy();
   });
   it("expõe somente a correlação técnica da legenda visível, sem duplicar o texto original", () => {
     const translation = {
@@ -119,7 +156,7 @@ describe("SubtitleCamp", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Selecionar idioma: Português" }),
+      screen.getByRole("button", { name: "Seu idioma falado" }),
     ).toBeTruthy();
     const feed = screen.getByLabelText("Legenda traduzida");
     expect(within(feed).getByText("Primeira tradução")).toBeTruthy();
@@ -228,7 +265,7 @@ describe("SubtitleCamp", () => {
     expect(feed.scrollTop).toBe(240);
   });
 
-  it("mantém visíveis somente as três traduções mais recentes", () => {
+  it("mantém todo o histórico recebido disponível para rolar", () => {
     render(
       <SubtitleCamp
         {...defaultProps}
@@ -243,12 +280,12 @@ describe("SubtitleCamp", () => {
     );
 
     const feed = screen.getByLabelText("Legenda traduzida");
-    expect(within(feed).queryByText("Primeira")).toBeNull();
-    expect(within(feed).queryByText("Segunda")).toBeNull();
+    expect(within(feed).getByText("Primeira")).toBeTruthy();
+    expect(within(feed).getByText("Segunda")).toBeTruthy();
     expect(within(feed).getByText("Terceira")).toBeTruthy();
     expect(within(feed).getByText("Quarta")).toBeTruthy();
     expect(within(feed).getByText("Quinta")).toBeTruthy();
-    expect(feed.childElementCount).toBe(3);
+    expect(feed.childElementCount).toBe(5);
   });
 
   it("promove uma legenda atrasada à janela sem perder a ordem de leitura", () => {
@@ -262,10 +299,54 @@ describe("SubtitleCamp", () => {
     const feed = screen.getByLabelText("Legenda traduzida");
     expect(Array.from(feed.children).map((item) => item.textContent)).toEqual([
       "Atrasada ",
+      "Segunda ",
       "Terceira ",
       "Quarta ",
     ]);
     expect(screen.getByRole("status").textContent).toBe("Atrasada");
+  });
+
+  it("does not pull the reader away from earlier captions on arrival", () => {
+    const { rerender } = render(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[makeTranslation(1, "Primeira")]}
+      />,
+    );
+    const feed = screen.getByLabelText("Legenda traduzida");
+    Object.defineProperty(feed, "scrollHeight", {
+      configurable: true,
+      value: 900,
+    });
+    Object.defineProperty(feed, "clientHeight", {
+      configurable: true,
+      value: 100,
+    });
+    feed.scrollTop = 20;
+    fireEvent.scroll(feed);
+    rerender(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[
+          makeTranslation(1, "Primeira"),
+          makeTranslation(2, "Segunda"),
+        ]}
+      />,
+    );
+    expect(feed.scrollTop).toBe(20);
+    feed.scrollTop = 800;
+    fireEvent.scroll(feed);
+    rerender(
+      <SubtitleCamp
+        {...defaultProps}
+        translations={[
+          makeTranslation(1, "Primeira"),
+          makeTranslation(2, "Segunda"),
+          makeTranslation(3, "Terceira"),
+        ]}
+      />,
+    );
+    expect(feed.scrollTop).toBe(900);
   });
 
   it("rola até a legenda atrasada, sem apenas posicionar o feed no fim", () => {

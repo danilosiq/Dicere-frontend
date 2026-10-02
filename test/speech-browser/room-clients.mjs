@@ -77,9 +77,22 @@ function languageOption(page, language) {
 async function enterDetails(page, name, language, password) {
   await page.getByLabel("Seu nome").fill(name);
   await page
-    .getByRole("button", { name: "Selecionar idioma", exact: true })
+    .getByRole("button", {
+      name: "Idioma que deseja receber as traduções",
+      exact: true,
+    })
     .click();
   await languageOption(page, language).click();
+  await page
+    .getByRole("button", {
+      name: "Idioma que você irá falar na chamada",
+      exact: true,
+    })
+    .click();
+  await languageOption(
+    page,
+    process.env.SPEECH_TEST_SOURCE_LANGUAGE ?? "PT-BR",
+  ).click();
   await page.getByLabel(/^Senha/).fill(password);
 }
 
@@ -108,6 +121,7 @@ export async function joinClients(
           nickname: "Quality IT",
           role: "ADM",
           targetLanguage: seed.targetLanguage,
+          spokenLanguage: "PT-BR",
         }),
       );
     }, existingRoom);
@@ -124,9 +138,22 @@ export async function joinClients(
       .getByLabel("Seu nome")
       .fill(`Quality ${existingRoom.targetLanguage ?? "IT"}`);
     await first
-      .getByRole("button", { name: "Selecionar idioma", exact: true })
+      .getByRole("button", {
+        name: "Idioma que deseja receber as traduções",
+        exact: true,
+      })
       .click();
-    await languageOption(first, existingRoom.targetLanguage ?? "IT").click();
+    await languageOption(first, existingRoom.targetLanguage ?? "EN").click();
+    await first
+      .getByRole("button", {
+        name: "Idioma que você irá falar na chamada",
+        exact: true,
+      })
+      .click();
+    await languageOption(
+      first,
+      process.env.SPEECH_TEST_SOURCE_LANGUAGE ?? "PT-BR",
+    ).click();
     stage("admin-password");
     await first.getByLabel(/^Senha/).fill(password);
     stage("admin-confirm");
@@ -140,10 +167,10 @@ export async function joinClients(
     await first.getByLabel("Título da sala").fill("Validação privada STT");
     await enterDetails(
       first,
-      `Quality ${existingRoom?.targetLanguage ?? process.env.SPEECH_TEST_TARGET_LANGUAGE ?? "IT"}`,
+      `Quality ${existingRoom?.targetLanguage ?? process.env.SPEECH_TEST_TARGET_LANGUAGE ?? "EN"}`,
       existingRoom?.targetLanguage ??
         process.env.SPEECH_TEST_TARGET_LANGUAGE ??
-        "IT",
+        "EN",
       password,
     );
     const created = first.waitForResponse(
@@ -161,7 +188,7 @@ export async function joinClients(
   const language =
     existingRoom?.targetLanguage ??
     process.env.SPEECH_TEST_TARGET_LANGUAGE ??
-    "IT";
+    "EN";
   await second.goto(frontendUrl);
   await second
     .getByRole("button", { name: "Entrar na sala", exact: true })
@@ -188,9 +215,7 @@ export async function joinClients(
     const sourceLanguage = process.env.SPEECH_TEST_SOURCE_LANGUAGE;
     if (sourceLanguage && sourceLanguage !== "PT-BR") {
       await page
-        .getByText("Idioma falado", { exact: true })
-        .locator("..")
-        .getByRole("button", { name: /Selecionar idioma/ })
+        .getByRole("button", { name: "Seu idioma falado", exact: true })
         .click();
       await languageOption(page, sourceLanguage).click();
     }

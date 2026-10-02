@@ -12,6 +12,7 @@ import {
   RoomAccessError,
 } from "@/core/services/room-service";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
+import type { DeepLTargetLanguage } from "@/core/components";
 
 type PendingCreatedRoom = {
   createdRoom: CreateRoomResult;
@@ -40,12 +41,12 @@ export function useRoomAccess() {
   const [error, setError] = useState<RoomAccessError | null>(null);
 
   const enterRoom = useCallback(
-    async (payload: JoinRoomPayload) => {
+    async (payload: JoinRoomPayload, spokenLanguage?: DeepLTargetLanguage) => {
       setError(null);
 
       try {
         const joinedRoom = await joinRoomMutation.mutateAsync(payload);
-        setJoinedSession(joinedRoom);
+        setJoinedSession(joinedRoom, spokenLanguage);
         return joinedRoom;
       } catch (cause) {
         const normalizedError = normalizeError(cause);
@@ -74,13 +75,16 @@ export function useRoomAccess() {
           pendingCreatedRoomRef.current = pending;
         }
 
-        const joinedRoom = await enterRoom({
-          roomCode: pending.createdRoom.code,
-          password: pending.formData.password,
-          nickname: pending.formData.nickname,
-          targetLanguage: pending.formData.targetLanguage,
-          participantId: pending.createdRoom.adminParticipantId,
-        });
+        const joinedRoom = await enterRoom(
+          {
+            roomCode: pending.createdRoom.code,
+            password: pending.formData.password,
+            nickname: pending.formData.nickname,
+            targetLanguage: pending.formData.targetLanguage,
+            participantId: pending.createdRoom.adminParticipantId,
+          },
+          pending.formData.spokenLanguage,
+        );
         pendingCreatedRoomRef.current = null;
         return joinedRoom;
       } catch (cause) {
@@ -106,13 +110,16 @@ export function useRoomAccess() {
 
   const joinExistingRoom = useCallback(
     (data: JoinRoomSchemaType, participantId?: string) =>
-      enterRoom({
-        roomCode: data.roomCode,
-        password: data.password,
-        nickname: data.name,
-        targetLanguage: data.targetLanguage,
-        participantId,
-      }),
+      enterRoom(
+        {
+          roomCode: data.roomCode,
+          password: data.password,
+          nickname: data.name,
+          targetLanguage: data.targetLanguage,
+          participantId,
+        },
+        data.spokenLanguage,
+      ),
     [enterRoom],
   );
 

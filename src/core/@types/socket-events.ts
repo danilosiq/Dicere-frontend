@@ -226,6 +226,10 @@ export type ServerToClientEvents = {
 };
 
 export type ClientToServerEvents = SpeechEvents & {
+  set_translation_language: (
+    payload: { targetLanguage: string },
+    acknowledgement: (payload: unknown) => void,
+  ) => void;
   join_room: (payload: JoinRoomPayload) => void;
   send_message: (payload: SendChatMessagePayload) => void;
   list_messages: (payload: ListChatMessagesPayload) => void;

@@ -140,8 +140,9 @@ describe("ChatSection sending", () => {
     });
   });
 
-  it("keeps the composer blocked until the source language is selected", async () => {
+  it("uses the spoken language without requiring another selection", async () => {
     mocks.sendChatMessage.mockResolvedValue(message);
+    useRoomSessionStore.getState().setSpokenLanguage("ES");
     renderChatSection({ selectLanguage: false });
 
     await screen.findByText("Envie a primeira mensagem da sala.");
@@ -152,20 +153,18 @@ describe("ChatSection sending", () => {
 
     fireEvent.change(input, { target: { value: "Olá" } });
 
-    expect(sendButton.disabled).toBe(true);
+    expect(sendButton.disabled).toBe(false);
     expect(
-      screen.getByText("Selecione o idioma em que você está escrevendo."),
-    ).toBeTruthy();
+      screen.queryByText("Selecione o idioma em que você está escrevendo."),
+    ).toBeNull();
     expect(mocks.sendChatMessage).not.toHaveBeenCalled();
-
-    selectSourceLanguage();
 
     expect(sendButton.disabled).toBe(false);
     fireEvent.click(sendButton);
 
     await waitFor(() => {
       expect(mocks.sendChatMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ sourceLanguage: "PT-BR" }),
+        expect.objectContaining({ sourceLanguage: "ES" }),
       );
     });
   });

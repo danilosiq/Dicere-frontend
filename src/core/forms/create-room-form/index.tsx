@@ -28,6 +28,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
       nickname: "",
       password: "",
       targetLanguage: undefined,
+      spokenLanguage: undefined,
     },
   });
 
@@ -58,16 +59,28 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
+              label="Idioma que deseja receber as traduções"
+              error={errors.targetLanguage?.message}
+              disabled={isSubmitting}
               placeholder="Idioma das traduções recebidas"
               onSelect={field.onChange}
             />
           )}
         />
-        {errors.targetLanguage?.message && (
-          <p className="text-error text-sm" role="alert">
-            {errors.targetLanguage.message}
-          </p>
-        )}
+        <Controller
+          control={control}
+          name="spokenLanguage"
+          render={({ field }) => (
+            <SelectorCountry
+              value={field.value}
+              label="Idioma que você irá falar na chamada"
+              placeholder="Selecione seu idioma falado"
+              error={errors.spokenLanguage?.message}
+              disabled={isSubmitting}
+              onSelect={field.onChange}
+            />
+          )}
+        />
         <InputText
           label="Senha"
           placeholder="Senha"

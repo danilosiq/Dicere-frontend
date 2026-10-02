@@ -18,7 +18,6 @@ import { useLocalSpeech, type LocalCaptionIssue } from "./use-local-speech";
 import { useServerSpeech } from "./use-server-speech";
 import { isServerSpeechEnabled } from "@/core/services/server-speech/config";
 
-export const SPEECH_TRANSLATION_HISTORY_LIMIT = 100;
 export const SPEECH_PREVIOUS_CONTEXT_LIMIT = 250;
 export type CaptionIssue = LocalCaptionIssue;
 export type ReceivedVoiceTranslation = VoiceTranslationReceivedPayload & {
@@ -131,10 +130,9 @@ function mergeReceivedTranslation(
     return next.sort((left, right) => left.sequence - right.sequence);
   }
 
-  return [...current, incoming]
-    .sort((left, right) => right.receivedOrder - left.receivedOrder)
-    .slice(0, SPEECH_TRANSLATION_HISTORY_LIMIT)
-    .sort((left, right) => left.sequence - right.sequence);
+  return [...current, incoming].sort(
+    (left, right) => left.sequence - right.sequence,
+  );
 }
 
 export function useSpeechTranslation({

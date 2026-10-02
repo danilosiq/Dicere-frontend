@@ -14,6 +14,7 @@ interface JoinRoomDrawerProps {
   initialRoomCode?: string;
   initialName?: string;
   initialTargetLanguage?: DeepLTargetLanguage;
+  initialSpokenLanguage?: DeepLTargetLanguage;
   resumeOnly?: boolean;
   errorMessage?: string | null;
 }
@@ -25,6 +26,7 @@ export function JoinRoomDrawer({
   initialRoomCode,
   initialName,
   initialTargetLanguage,
+  initialSpokenLanguage,
   resumeOnly,
   errorMessage,
 }: JoinRoomDrawerProps) {
@@ -59,6 +61,7 @@ export function JoinRoomDrawer({
           initialName={initialName}
           initialRoomCode={initialRoomCode}
           initialTargetLanguage={initialTargetLanguage}
+          initialSpokenLanguage={initialSpokenLanguage}
           onCancel={onClose}
           onSubmit={onSubmit}
           resumeOnly={resumeOnly}

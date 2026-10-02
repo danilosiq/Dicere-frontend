@@ -108,7 +108,7 @@ try {
   });
   assert.deepEqual(observations.normal.sequences, [2, 3, 4]);
   assert.equal(observations.normal.atBottom, true);
-  assert.deepEqual(observations.late.sequences, [1, 3, 4]);
+  assert.deepEqual(observations.late.sequences, [1, 2, 3, 4]);
   assert.equal(observations.late.latest, 1);
   assert.equal(observations.late.firstLineVisible, true);
   assert.equal(observations.late.atBottom, false);

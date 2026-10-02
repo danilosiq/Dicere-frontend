@@ -31,6 +31,10 @@ export function ChatSection() {
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
   const resumeSession = useRoomSessionStore((state) => state.resumeSession);
+  const spokenLanguage = useRoomSessionStore((state) => state.spokenLanguage);
+  const setSpokenLanguage = useRoomSessionStore(
+    (state) => state.setSpokenLanguage,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -44,6 +48,8 @@ export function ChatSection() {
   const chat = useRoomChat({
     roomId: room?.id,
     participantId: participant?.id,
+    sourceLanguage: spokenLanguage,
+    onSourceLanguageChange: setSpokenLanguage,
   });
   const translations = useMessageTranslations({
     messages: chat.messages,
@@ -200,7 +206,7 @@ export function ChatSection() {
         <div
           aria-busy={chat.isInitialLoading || chat.isLoadingOlder}
           aria-label="Mensagens da sala"
-          className="relative z-10 mt-6 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pb-4"
+          className="relative z-10 mt-6 flex min-h-0 flex-1 [scrollbar-width:none] flex-col gap-6 overflow-y-auto px-6 pb-4 [&::-webkit-scrollbar]:hidden"
           onScroll={handleMessagesScroll}
           ref={messagesViewportRef}
           role="log"

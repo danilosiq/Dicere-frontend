@@ -3,12 +3,10 @@
 import { Row } from "@/core/components/layout";
 import { MediaStreamVideo } from "@/core/components/media-stream-video";
 import { Typography } from "@/core/components/typography";
-import type { DeepLTargetLanguage } from "@/core/components";
 import type { CallSession } from "@/core/hooks/use-call-session";
 import { useSpeechTranslation } from "@/core/hooks/use-speech-translation";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
 import {
-  getDefaultSpeechLanguage,
   isSpeechSourceLanguageSupported,
   speechSourceLanguageMessage,
 } from "@/core/utils/speech-recognition-language";
@@ -17,14 +15,17 @@ import { useState } from "react";
 import { SubtitleCamp } from "./subtitle-camp";
 import { SpeechPrivacyNotice } from "./speech-privacy-notice";
 import { isServerSpeechEnabled } from "@/core/services/server-speech/config";
+import { useTranslationLanguage } from "@/core/hooks/use-translation-language";
 
 export function VideoSection({ call }: { call: CallSession }) {
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
   const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
-  const [speechLanguage, setSpeechLanguage] = useState<DeepLTargetLanguage>(
-    getDefaultSpeechLanguage,
+  const speechLanguage = useRoomSessionStore((state) => state.spokenLanguage);
+  const setSpeechLanguage = useRoomSessionStore(
+    (state) => state.setSpokenLanguage,
   );
+  const targetLanguage = useTranslationLanguage(room?.id, participant?.id);
   const needsSpeechConsent =
     isServerSpeechEnabled(room?.id, speechLanguage) &&
     acceptedSpeechRoom !== room?.id;
@@ -76,6 +77,9 @@ export function VideoSection({ call }: { call: CallSession }) {
           }
           language={speechLanguage}
           targetLanguage={participant?.targetLanguage}
+          onTargetLanguageChange={targetLanguage.changeLanguage}
+          isUpdatingTargetLanguage={targetLanguage.isUpdating}
+          targetLanguageError={targetLanguage.error}
           translations={speechTranslation.translations}
           onLanguageChange={setSpeechLanguage}
           retryRecognition={speechTranslation.retryRecognition}

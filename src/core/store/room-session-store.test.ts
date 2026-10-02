@@ -20,6 +20,32 @@ const joinedRoom = {
 };
 
 describe("room session store", () => {
+  it("shares and persists spoken language independently from translation target", () => {
+    const state = useRoomSessionStore.getState();
+    state.setJoinedSession(
+      {
+        ...joinedRoom,
+        participant: { ...joinedRoom.participant, targetLanguage: "PT-BR" },
+      },
+      "ES",
+    );
+    expect(useRoomSessionStore.getState().spokenLanguage).toBe("ES");
+    state.setSpokenLanguage("EN");
+    expect(useRoomSessionStore.getState().participant?.targetLanguage).toBe(
+      "PT-BR",
+    );
+    expect(
+      JSON.parse(window.sessionStorage.getItem("dicere-room-session")!)
+        .spokenLanguage,
+    ).toBe("EN");
+    state.setJoinedSession(joinedRoom);
+    expect(useRoomSessionStore.getState().spokenLanguage).toBe("EN");
+    state.setJoinedSession({
+      ...joinedRoom,
+      participant: { ...joinedRoom.participant, id: "another" },
+    });
+    expect(useRoomSessionStore.getState().spokenLanguage).toBe("PT-BR");
+  });
   beforeEach(() => {
     window.sessionStorage.clear();
     useRoomSessionStore.getState().clearSession();

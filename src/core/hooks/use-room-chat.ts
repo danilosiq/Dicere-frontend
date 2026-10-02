@@ -20,6 +20,8 @@ import {
 type UseRoomChatParams = {
   roomId?: string;
   participantId?: string;
+  sourceLanguage?: DeepLTargetLanguage;
+  onSourceLanguageChange?: (language: DeepLTargetLanguage) => void;
 };
 
 type RoomMessagesState = {
@@ -104,7 +106,12 @@ function getDraftValidationError(
   return null;
 }
 
-export function useRoomChat({ roomId, participantId }: UseRoomChatParams) {
+export function useRoomChat({
+  roomId,
+  participantId,
+  sourceLanguage: configuredSourceLanguage,
+  onSourceLanguageChange,
+}: UseRoomChatParams) {
   const [messagesState, setMessagesState] = useState<RoomMessagesState>({
     roomId,
     messages: [],
@@ -133,9 +140,10 @@ export function useRoomChat({ roomId, participantId }: UseRoomChatParams) {
     messagesState.roomId === roomId ? messagesState.revision : 0;
   const draft = draftState.roomId === roomId ? draftState.value : "";
   const sourceLanguage =
-    sourceLanguageState.roomId === roomId
+    configuredSourceLanguage ??
+    (sourceLanguageState.roomId === roomId
       ? sourceLanguageState.value
-      : undefined;
+      : undefined);
   const history =
     historyState.roomId === roomId ? historyState : createHistoryState(roomId);
   const currentSendState =
@@ -173,13 +181,14 @@ export function useRoomChat({ roomId, participantId }: UseRoomChatParams) {
 
   const setSourceLanguage = useCallback(
     (value: DeepLTargetLanguage) => {
+      onSourceLanguageChange?.(value);
       setSourceLanguageState({ roomId, value });
       setSendState((current) => ({
         ...(current.roomId === roomId ? current : createSendState(roomId)),
         error: null,
       }));
     },
-    [roomId],
+    [roomId, onSourceLanguageChange],
   );
 
   const mergeMessages = useCallback(

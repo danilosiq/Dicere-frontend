@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallSession } from "@/core/hooks/use-call-session";
 import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
 import type { DeepLTargetLanguage } from "@/core/components";
+import { useRoomSessionStore } from "@/core/store/room-session-store";
 const mocks = vi.hoisted(() => ({
   speech: vi.fn(),
   subtitle: vi.fn(),
@@ -15,10 +16,6 @@ vi.mock("next/font/google", () => ({
 vi.mock("@/core/hooks/use-speech-translation", () => ({
   useSpeechTranslation: mocks.speech,
 }));
-vi.mock("@/core/store/room-session-store", () => ({
-  useRoomSessionStore: (select: (state: unknown) => unknown) =>
-    select({ room: mocks.room }),
-}));
 vi.mock("@/core/components/media-stream-video", () => ({
   MediaStreamVideo: () => null,
 }));
@@ -30,9 +27,23 @@ vi.mock("./subtitle-camp", () => ({
 }));
 import { VideoSection } from "./video-section";
 const call = { microphoneEnabled: true, isLeaving: false } as CallSession;
+function setRoom(id: string) {
+  mocks.room = { id, participants: [] };
+  act(() =>
+    useRoomSessionStore.setState({
+      room: {
+        ...mocks.room,
+        code: "ABC-234-K9X",
+        title: "Daily",
+        status: "ACTIVE",
+      },
+    }),
+  );
+}
 
 beforeEach(() => {
-  mocks.room = { id: "room-1", participants: [] };
+  useRoomSessionStore.getState().clearSession();
+  setRoom("room-1");
   mocks.subtitle.mockReset();
   mocks.speech.mockReturnValue({
     captionIssue: null,
@@ -53,7 +64,7 @@ describe("server speech privacy gate", () => {
     const pilot = "550e8400-e29b-41d4-a716-446655440000";
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
-    mocks.room = { id: pilot, participants: [] };
+    setRoom(pilot);
     const view = render(<VideoSection call={call} />);
     expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
     expect(mocks.speech).toHaveBeenLastCalledWith(
@@ -65,7 +76,7 @@ describe("server speech privacy gate", () => {
     expect(mocks.speech).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: true }),
     );
-    mocks.room = { id: "another-room", participants: [] };
+    setRoom("another-room");
     view.rerender(<VideoSection call={call} />);
     expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
   });
@@ -93,7 +104,7 @@ describe("server speech privacy gate", () => {
   it("requires consent for English as well as Portuguese in a pilot", () => {
     const pilot = "550e8400-e29b-41d4-a716-446655440000";
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
-    mocks.room = { id: pilot, participants: [] };
+    setRoom(pilot);
     render(<VideoSection call={call} />);
     expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
     act(() => mocks.subtitle.mock.calls.at(-1)?.[0].onLanguageChange("EN"));
@@ -114,7 +125,7 @@ describe("server speech privacy gate", () => {
       "NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS",
       `${firstPilot},${secondPilot}`,
     );
-    mocks.room = { id: firstPilot, participants: [] };
+    setRoom(firstPilot);
     const view = render(<VideoSection call={call} />);
     expect(mocks.speech).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: false }),
@@ -126,7 +137,7 @@ describe("server speech privacy gate", () => {
     expect(mocks.speech).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: true }),
     );
-    mocks.room = { id: secondPilot, participants: [] };
+    setRoom(secondPilot);
     view.rerender(<VideoSection call={call} />);
     expect(mocks.speech).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: false }),

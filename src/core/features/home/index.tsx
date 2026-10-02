@@ -138,6 +138,9 @@ export function HomeScreen() {
             ? resumeSession.targetLanguage
             : undefined
         }
+        initialSpokenLanguage={
+          isResuming ? resumeSession?.spokenLanguage : undefined
+        }
         onClose={closeJoinRoomDrawer}
         onSubmit={handleJoinRoom}
         resumeOnly={isResuming}

@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { cn } from "@/core/utils/cn";
+import { Typography } from "@/core/components/typography";
 
 import { COUNTRY_LIST } from "./countryList";
 import type {
@@ -44,6 +45,8 @@ export function SelectorCountry({
   value,
   defaultValue,
   placeholder = "Selecionar idioma",
+  label,
+  error,
   hideLabelText = false,
   disabled = false,
   className,
@@ -62,6 +65,8 @@ export function SelectorCountry({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
+  const triggerId = useId();
+  const errorId = useId();
   const selectedValue = value ?? internalValue;
   const displayValue =
     selectedValue === "EN-US" || selectedValue === "EN-GB"
@@ -191,14 +196,24 @@ export function SelectorCountry({
       className={cn("relative", hideLabelText ? "w-auto shrink-0" : "w-full")}
       ref={containerRef}
     >
+      {label && (
+        <label className="mb-1 block" htmlFor={triggerId}>
+          <Typography fontFamily="baloo2" fontWeight="semibold" size="sm">
+            {label}
+          </Typography>
+        </label>
+      )}
       <button
+        id={triggerId}
+        aria-describedby={error ? errorId : undefined}
         aria-controls={dropdownIsOpen ? listboxId : undefined}
         aria-expanded={dropdownIsOpen}
         aria-haspopup="listbox"
         aria-label={
-          selectedOption
+          label ??
+          (selectedOption
             ? `Selecionar idioma: ${selectedOption.name}`
-            : "Selecionar idioma"
+            : "Selecionar idioma")
         }
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm",
@@ -236,6 +251,11 @@ export function SelectorCountry({
           )}
         />
       </button>
+      {error && (
+        <p id={errorId} role="alert" className="text-error mt-1 text-sm">
+          {error}
+        </p>
+      )}
 
       {dropdownIsOpen && (
         <div

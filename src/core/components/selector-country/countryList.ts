@@ -58,3 +58,13 @@ export const COUNTRY_LIST = [
   flag: CountryCode;
   name: string;
 }>;
+
+export function getSelectableLanguage(value: unknown) {
+  const canonical =
+    value === "EN-US" || value === "EN-GB"
+      ? "EN"
+      : value === "ZH"
+        ? "ZH-HANS"
+        : value;
+  return COUNTRY_LIST.find((option) => option.label === canonical)?.label;
+}

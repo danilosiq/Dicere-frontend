@@ -37,6 +37,7 @@ const createForm = {
   nickname: "Danilo",
   password: "secret",
   targetLanguage: "PT-BR" as const,
+  spokenLanguage: "ES" as const,
 };
 
 const createdRoom = {
@@ -95,6 +96,7 @@ describe("useRoomAccess", () => {
     });
 
     expect(createRoom).toHaveBeenCalledTimes(1);
+    expect(useRoomSessionStore.getState().spokenLanguage).toBe("ES");
     expect(joinRoomWithReconnectRetry).toHaveBeenCalledTimes(2);
     expect(joinRoomWithReconnectRetry).toHaveBeenLastCalledWith(
       {

@@ -11,9 +11,9 @@ export function selectCaptionPresentation(
     (left, right) => arrivalOrder(left) - arrivalOrder(right),
   );
   return {
-    visibleTranslations: byArrival
-      .slice(-3)
-      .sort((left, right) => left.sequence - right.sequence),
+    visibleTranslations: [...translations].sort(
+      (left, right) => left.sequence - right.sequence,
+    ),
     latestTranslation: byArrival.at(-1),
   };
 }

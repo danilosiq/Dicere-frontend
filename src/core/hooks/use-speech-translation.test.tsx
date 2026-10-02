@@ -391,7 +391,7 @@ describe("useSpeechTranslation with local transcripts", () => {
     expect(result.current.translations[0].receivedOrder).toBe(1);
   });
 
-  it("limita o histórico recebido a cem segmentos", () => {
+  it("preserva o histórico inteiro recebido durante a sala", () => {
     const { result } = renderSpeechHook();
 
     act(() => {
@@ -412,12 +412,12 @@ describe("useSpeechTranslation with local transcripts", () => {
       }
     });
 
-    expect(result.current.translations).toHaveLength(100);
-    expect(result.current.translations[0]?.sequence).toBe(6);
+    expect(result.current.translations).toHaveLength(105);
+    expect(result.current.translations[0]?.sequence).toBe(1);
     expect(result.current.translations.at(-1)?.sequence).toBe(105);
   });
 
-  it("retém segmento antigo recuperado entre as cem chegadas mais recentes", () => {
+  it("retém segmento antigo recuperado sem descartar chegadas anteriores", () => {
     const { result } = renderSpeechHook();
     act(() => {
       for (let sequence = 2; sequence <= 101; sequence += 1) {
@@ -449,10 +449,10 @@ describe("useSpeechTranslation with local transcripts", () => {
         traceId: "trace-1",
       });
     });
-    expect(result.current.translations).toHaveLength(100);
+    expect(result.current.translations).toHaveLength(101);
     expect(result.current.translations[0]?.sequence).toBe(1);
     expect(
       result.current.translations.some(({ sequence }) => sequence === 2),
-    ).toBe(false);
+    ).toBe(true);
   });
 });

@@ -4,6 +4,30 @@ import { createRoomSchema } from "@/core/forms/create-room-form/schema";
 import { joinRoomSchema } from "@/core/forms/join-room-form/schema";
 
 describe("room form schemas", () => {
+  it.each([createRoomSchema, joinRoomSchema])(
+    "requires separate supported spoken and target languages",
+    (schema) => {
+      const data = {
+        title: "Daily",
+        nickname: "Danilo",
+        name: "Maria",
+        roomCode: "ABC-234-K9X",
+        password: "secret",
+        targetLanguage: "PT-BR",
+        spokenLanguage: "ES",
+      };
+      expect(schema.safeParse(data).success).toBe(true);
+      expect(
+        schema.safeParse({ ...data, spokenLanguage: undefined }).success,
+      ).toBe(false);
+      expect(
+        schema.safeParse({ ...data, targetLanguage: undefined }).success,
+      ).toBe(false);
+      expect(schema.safeParse({ ...data, spokenLanguage: "DE" }).success).toBe(
+        false,
+      );
+    },
+  );
   it("validates the create room limits", () => {
     expect(
       createRoomSchema.safeParse({
@@ -35,6 +59,7 @@ describe("room form schemas", () => {
     expect(
       joinRoomSchema.safeParse({
         roomCode: "ABC-234-K9X",
+        spokenLanguage: "ES",
         name: "Maria",
         password: "secret",
         targetLanguage: "PT-BR",

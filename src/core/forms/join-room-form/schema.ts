@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ROOM_CODE_PATTERN } from "@/core/@types/room";
-import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import { COUNTRY_LIST } from "@/core/components/selector-country/countryList";
 
 export const joinRoomSchema = z.object({
   roomCode: z
@@ -10,9 +10,16 @@ export const joinRoomSchema = z.object({
     .regex(ROOM_CODE_PATTERN, "Código da sala inválido"),
   name: z.string().trim().min(1, "Informe seu nome"),
   password: z.string().min(1, "Informe a senha"),
-  targetLanguage: z.enum(DEEPL_TARGET_LANGUAGES, {
-    error: "Selecione o idioma em que deseja receber as traduções",
-  }),
+  targetLanguage: z.enum(
+    COUNTRY_LIST.map(({ label }) => label),
+    {
+      error: "Selecione o idioma em que deseja receber as traduções",
+    },
+  ),
+  spokenLanguage: z.enum(
+    COUNTRY_LIST.map(({ label }) => label),
+    { error: "Selecione o idioma que você irá falar na chamada" },
+  ),
 });
 
 export type JoinRoomSchemaType = z.infer<typeof joinRoomSchema>;

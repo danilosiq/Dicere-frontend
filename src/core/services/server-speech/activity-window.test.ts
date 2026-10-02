@@ -15,3 +15,11 @@ it("does not retain activity after varying loud samples followed by silence", ()
   for (let i = 0; i < 256; i++) activity.push(0);
   for (let i = 0; i < 1000; i++) expect(activity.push(0)).toBe(false);
 });
+
+it("clears previous activity at a capture rollover without retaining speech", () => {
+  const activity = new SpeechActivityWindow();
+  expect(activity.push(0.5)).toBe(true);
+  activity.reset();
+  expect(activity.push(0)).toBe(false);
+  expect(activity.push(0.5)).toBe(true);
+});

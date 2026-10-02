@@ -3,6 +3,7 @@ import { StreamingSpeechClient } from "./client";
 import { SpeechMicrophone } from "./microphone";
 import { StreamingSegmenter } from "./segmenter";
 import { isServerSpeechLocale } from "./languages";
+import { capturePolicy } from "./capture-policy";
 
 type Stage = "preparing" | "microphone" | "listening";
 export type ServerSpeechOptions = {
@@ -30,11 +31,14 @@ export class ServerSpeechEngine {
       undefined,
       isServerSpeechLocale(options.locale) ? options.locale : "pt-BR",
     );
-    const segmenter = new StreamingSegmenter({
-      start: () => this.client.start(),
-      chunk: (frame) => this.client.chunk(frame),
-      finish: () => this.client.finish(),
-    });
+    const segmenter = new StreamingSegmenter(
+      {
+        start: () => this.client.start(),
+        chunk: (frame) => this.client.chunk(frame),
+        finish: () => this.client.finish(),
+      },
+      capturePolicy(options.locale),
+    );
     this.microphone = new SpeechMicrophone(
       (frame) => {
         try {

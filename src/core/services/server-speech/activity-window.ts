@@ -17,4 +17,9 @@ export class SpeechActivityWindow {
     this.offset = (this.offset + 1) % this.squares.length;
     return this.energy >= 0.008 ** 2 * this.squares.length;
   }
+
+  reset() {
+    this.squares.fill(0);
+    this.offset = this.energy = 0;
+  }
 }

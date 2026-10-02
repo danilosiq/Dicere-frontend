@@ -1,12 +1,16 @@
 import { PcmFrameBuffer } from "./pcm-frame-buffer";
 import { SpeechActivityWindow } from "./activity-window";
 import { PcmPreroll } from "./pcm-preroll";
+import { capturePolicy, type CapturePolicy } from "./capture-policy";
 
 type Callbacks = {
   start: () => void;
   chunk: (frame: Float32Array) => void;
   finish: () => void;
 };
+
+const CONTINUATION_PAUSE_SAMPLES = 3200;
+const END_PAUSE_SAMPLES = 12288;
 
 /** Candidate endpointing, not yet corpus-approved. Input is 16 kHz mono PCM. */
 export class StreamingSegmenter {
@@ -19,7 +23,10 @@ export class StreamingSegmenter {
     this.callbacks.chunk(frame),
   );
 
-  constructor(private readonly callbacks: Callbacks) {}
+  constructor(
+    private readonly callbacks: Callbacks,
+    private readonly policy: CapturePolicy = capturePolicy("pt-BR"),
+  ) {}
 
   push(frame: Float32Array) {
     if (
@@ -45,16 +52,24 @@ export class StreamingSegmenter {
       this.transport.push(preroll);
     }
     this.samples += 1;
-    if (this.samples > 192000) throw new Error("STT_UTTERANCE_TOO_LONG");
     this.transport.pushSample(sample);
     this.silentSamples = voiced ? 0 : this.silentSamples + 1;
-    // Preserve the previous effective 768 ms pause tolerance. Do not shorten
-    // pauses to make a single recording appear faster.
-    if (this.silentSamples >= 12288) {
+    // Keep the 768 ms natural endpoint for short phrases. Long captures prefer
+    // a 200 ms acoustic pause after the soft limit; the engine-specific ceiling
+    // (at most the 12 s API limit) closes a capture,
+    // never the microphone. No overlapping audio or text-based deduplication.
+    const rollover = this.samples >= this.policy.maxSamples;
+    const longPause =
+      this.samples >= this.policy.softSamples &&
+      this.silentSamples >= CONTINUATION_PAUSE_SAMPLES;
+    if (rollover || longPause || this.silentSamples >= END_PAUSE_SAMPLES) {
       this.transport.flush();
       this.callbacks.finish();
       this.active = false;
       this.samples = this.silentSamples = 0;
+      // Old energy must not open a new silence-only capture immediately after
+      // a hard boundary. The preroll retains the next onset while VAD restarts.
+      if (rollover) this.activity.reset();
     }
   }
 }

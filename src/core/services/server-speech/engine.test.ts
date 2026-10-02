@@ -7,13 +7,15 @@ const mocks = vi.hoisted(() => ({
   on: vi.fn(),
   off: vi.fn(),
   microphoneCallback: undefined as undefined | ((frame: Float32Array) => void),
+  captureStart: vi.fn(),
+  captureFinish: vi.fn(),
 }));
 vi.mock("./client", () => ({
   StreamingSpeechClient: class {
     ready = mocks.ready;
     stop = mocks.clientStop;
-    start = vi.fn();
-    finish = vi.fn();
+    start = mocks.captureStart;
+    finish = mocks.captureFinish;
     chunk = vi.fn();
   },
 }));
@@ -49,6 +51,22 @@ function setup(locale = "pt-BR") {
   return { ...options, engine: new ServerSpeechEngine(options) };
 }
 describe("ServerSpeechEngine", () => {
+  it.each(["en-US", "en-GB", "es-ES"])(
+    "keeps %s listening for 31 seconds with six-second windows",
+    async (locale) => {
+      const { engine, onError } = setup(locale);
+      await engine.start();
+      for (let i = 0; i < 62; i++)
+        mocks.microphoneCallback!(new Float32Array(8000).fill(0.1));
+      for (let i = 0; i < 2; i++)
+        mocks.microphoneCallback!(new Float32Array(8000));
+      expect(mocks.captureStart).toHaveBeenCalledTimes(6);
+      expect(mocks.captureFinish).toHaveBeenCalledTimes(6);
+      expect(onError).not.toHaveBeenCalled();
+      expect(mocks.micStop).not.toHaveBeenCalled();
+      engine.stop();
+    },
+  );
   it("requires service readiness before starting the microphone", async () => {
     const { engine, onStage } = setup();
     await engine.start();

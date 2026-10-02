@@ -13,8 +13,6 @@ function messageFor(code: string) {
     return "Autorize o microfone para transcrever sua fala.";
   if (code === "STT_BACKGROUND_PAUSED")
     return "Transcrição pausada em segundo plano. Volte à sala e tente novamente.";
-  if (code === "STT_UTTERANCE_TOO_LONG")
-    return "Este teste ainda não aceita falas contínuas acima de 12 segundos. Faça uma pausa e tente novamente.";
   if (code === "STT_DISCONNECTED")
     return "A conexão de voz foi interrompida. Aguarde a reconexão da sala e tente novamente.";
   return "Não foi possível acompanhar a transcrição. Tente novamente.";

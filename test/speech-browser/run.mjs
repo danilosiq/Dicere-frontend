@@ -10,6 +10,7 @@ import { cleanup, closeBrowser } from "./cleanup.mjs";
 import { stopOwnedBrowser } from "./browser-process.mjs";
 import { evaluateReport } from "./evaluate-report.mjs";
 import { armShutdownWatchdog } from "./shutdown-watchdog.mjs";
+import { validateFixtureAudio } from "./fixture-audio.mjs";
 
 const schema = z
   .object({
@@ -28,13 +29,7 @@ const schema = z
 const configPath = resolve(process.argv[2] || "missing-private-fixture.json");
 const config = schema.parse(JSON.parse(readFileSync(configPath, "utf8")));
 const pcm = readFileSync(resolve(dirname(configPath), config.audioPcmPath));
-if (
-  !pcm.length ||
-  pcm.length % 2 ||
-  pcm.length > 384000 ||
-  config.earliestSpeechEndSample > pcm.length / 2
-)
-  throw new Error("INVALID_PRIVATE_PCM_FIXTURE");
+validateFixtureAudio(pcm, config.earliestSpeechEndSample);
 const frontendUrl = new URL(
   process.env.SPEECH_TEST_FRONTEND_URL || "http://localhost:3104",
 ).origin;

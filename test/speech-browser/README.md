@@ -76,6 +76,14 @@ isolados de componente/hook/layout e compatibilidade da API continuam no CI.
 
 ## Ensaio fim a fim
 
+O executor aceita gravações de até 120 s; este é um limite de segurança do
+teste, não do produto. O motor servidor continua capturando e enviando janelas
+de até 12 s (PT/Chinês) ou 6 s (EN/ES), preferindo uma pausa de 200 ms após
+8 s ou 4 s respectivamente. A API e o serviço STT
+mantêm o teto de 384000 bytes por sessão. A gravação longa não é enviada como
+uma única requisição nem é truncada para caber no teste. Resultados de todas as
+janelas entram no relatório, inclusive erros e divergências na fronteira.
+
 Este executor abre duas sessões reais do Dicere, cria uma sala exclusiva,
 seleciona os destinos configurados (EN por padrão), aceita o aviso e injeta PCM somente na entrada do
 microfone de STT. AudioWorklet, segmentação, Socket.IO, backend, modelo e DeepL

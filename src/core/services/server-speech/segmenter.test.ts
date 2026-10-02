@@ -35,10 +35,12 @@ describe("StreamingSegmenter", () => {
     expect(finish).not.toHaveBeenCalled();
   });
 
-  it("fails explicitly at the duration limit instead of clipping words", () => {
-    const { segmenter } = setup();
+  it("rolls over at the per-capture limit without stopping the microphone", () => {
+    const { segmenter, start, finish } = setup();
     expect(() => {
       for (let i = 0; i < 100; i++) segmenter.push(voice());
-    }).toThrow("STT_UTTERANCE_TOO_LONG");
+    }).not.toThrow();
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(finish).toHaveBeenCalledOnce();
   });
 });

@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SelectorCountry } from "@/core/components/selector-country";
+vi.mock("next/font/google", () => ({
+  Baloo_2: () => ({ className: "", variable: "" }),
+  Roboto: () => ({ className: "", variable: "" }),
+}));
 
 describe("SelectorCountry", () => {
   it.each([

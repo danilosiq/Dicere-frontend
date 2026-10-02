@@ -84,6 +84,16 @@ try {
       permissions: ["camera", "microphone"],
       viewport: { width: 1440, height: 1000 },
     });
+    if (process.env.UI_TEST_PROXY) {
+      await context.route(`${frontend}/**`, async (route) => {
+        const url = new URL(route.request().url());
+        const response = await route.fetch({
+          url: `${process.env.UI_TEST_PROXY}${url.pathname}${url.search}`,
+          maxRedirects: 0,
+        });
+        await route.fulfill({ response });
+      });
+    }
     await context.addInitScript(installMicrophoneFixture);
     await context.addInitScript(() => {
       const Native = window.WebSocket;
@@ -233,6 +243,10 @@ try {
           document.querySelector('[aria-label="Legenda traduzida"]').scrollTop >
           0,
       );
+      if (process.env.UI_TEST_EVIDENCE_DIR)
+        await first.screenshot({
+          path: `${process.env.UI_TEST_EVIDENCE_DIR}/${viewport.width}-${dark ? "dark" : "light"}.png`,
+        });
     }
   }
   assert.deepEqual(errors, []);

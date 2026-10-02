@@ -6,7 +6,7 @@ const contract = {
   version: 1,
   phase: "multilingual",
   globalActivationAllowed: true,
-  supportedLocales: ["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"],
+  supportedLocales: ["pt-BR", "en-US", "es-ES", "zh-CN"],
   protocolVersion: 1,
   captureWhileProcessing: true,
   sampleRate: 16000,

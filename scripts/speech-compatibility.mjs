@@ -56,7 +56,7 @@ export async function verifySpeechBackend(baseUrl, request = fetch) {
       !Object.entries(expected).every(
         ([key, value]) => contract?.[key] === value,
       ) ||
-      !["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"].every((locale) =>
+      !["pt-BR", "en-US", "es-ES", "zh-CN"].every((locale) =>
         contract?.supportedLocales?.includes(locale),
       ) ||
       !events.every(

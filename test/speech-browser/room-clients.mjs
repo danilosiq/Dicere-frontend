@@ -64,7 +64,6 @@ function languageOption(page, language) {
     "PT-BR": "Português",
     EN: "Inglês",
     ES: "Espanhol",
-    DE: "Alemão",
     "ZH-HANS": "Chinês",
   };
   const name = names[language];

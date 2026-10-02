@@ -11,8 +11,8 @@ export function SpeechPrivacyNotice({ onAccept }: { onAccept: () => void }) {
       <Typography size="sm">
         Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição,
         sem salvar gravações. O texto continua sendo enviado à DeepL para
-        tradução. O reconhecimento aceita Português, Inglês, Espanhol, Alemão e
-        Chinês e pausa quando esta aba fica oculta.
+        tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e
+        pausa quando esta aba fica oculta.
       </Typography>
       <Button label="Ativar transcrição nesta sala" onClick={onAccept} />
     </section>

@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { StreamingSpeechClient } from "./client";
 import { isServerSpeechEnabled } from "./config";
 afterEach(() => vi.unstubAllEnvs());
-it.each(["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"] as const)(
+it.each(["pt-BR", "en-US", "es-ES", "zh-CN"] as const)(
   "prepares and captures %s without rewriting the source",
   async (locale) => {
     const request = vi
@@ -17,7 +17,7 @@ it.each(["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"] as const)(
     client.stop();
   },
 );
-it.each(["PT-BR", "EN", "ES", "DE", "ZH-HANS"] as const)(
+it.each(["PT-BR", "EN", "ES", "ZH-HANS"] as const)(
   "enables the released %s server engine",
   (language) => {
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "true");

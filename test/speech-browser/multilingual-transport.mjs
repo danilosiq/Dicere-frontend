@@ -20,10 +20,9 @@ const locales = {
   pt: "pt-BR",
   en: "en-US",
   es: "es-ES",
-  de: "de-DE",
   zh: "zh-CN",
 };
-const sources = { pt: "PT", en: "EN", es: "ES", de: "DE", zh: "ZH" };
+const sources = { pt: "PT", en: "EN", es: "ES", zh: "ZH" };
 const results = [];
 for (const fixture of fixtures) {
   const locale = locales[fixture.language];

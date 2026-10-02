@@ -52,7 +52,6 @@ export const COUNTRY_LIST = [
   { label: "PT-BR", flag: "BR", name: "Português" },
   { label: "EN", flag: "US", name: "Inglês" },
   { label: "ES", flag: "ES", name: "Espanhol" },
-  { label: "DE", flag: "DE", name: "Alemão" },
   { label: "ZH-HANS", flag: "CN", name: "Chinês" },
 ] as const satisfies ReadonlyArray<{
   label: (typeof DEEPL_TARGET_LANGUAGES)[number];

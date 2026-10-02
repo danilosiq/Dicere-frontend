@@ -6,7 +6,7 @@ import type { LocalCaptionIssue } from "./use-local-speech";
 
 function messageFor(code: string) {
   if (code === "STT_LANGUAGE_UNSUPPORTED")
-    return "Selecione Português, Inglês, Espanhol, Alemão ou Chinês como idioma falado.";
+    return "Selecione Português, Inglês, Espanhol ou Chinês como idioma falado.";
   if (code === "STT_PERMISSION_DENIED")
     return "Autorize o microfone para transcrever sua fala.";
   if (code === "STT_BACKGROUND_PAUSED")

@@ -3,7 +3,6 @@ export const serverSpeechLocales = [
   "en-US",
   "en-GB",
   "es-ES",
-  "de-DE",
   "zh-CN",
 ] as const;
 export type ServerSpeechLocale = (typeof serverSpeechLocales)[number];

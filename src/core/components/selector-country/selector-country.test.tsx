@@ -38,7 +38,8 @@ describe("SelectorCountry", () => {
     fireEvent.click(trigger);
     expect(
       screen.getAllByRole("option").map((option) => option.textContent?.trim()),
-    ).toEqual(["Português", "Inglês", "Espanhol", "Alemão", "Chinês"]);
+    ).toEqual(["Português", "Inglês", "Espanhol", "Chinês"]);
+    expect(screen.queryByRole("option", { name: /Alemão/ })).toBeNull();
     const option = screen.getByRole("option", { name: /Português/ });
     expect(option).toBeTruthy();
     fireEvent.click(option);

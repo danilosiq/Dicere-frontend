@@ -63,12 +63,18 @@ export function SelectorCountry({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
   const selectedValue = value ?? internalValue;
+  const displayValue =
+    selectedValue === "EN-US" || selectedValue === "EN-GB"
+      ? "EN"
+      : selectedValue === "ZH"
+        ? "ZH-HANS"
+        : selectedValue;
   const dropdownIsOpen = isOpen && !disabled;
   const selectedOption = COUNTRY_LIST.find(
-    (option) => option.label === selectedValue,
+    (option) => option.label === displayValue,
   );
   const selectedIndex = COUNTRY_LIST.findIndex(
-    (option) => option.label === selectedValue,
+    (option) => option.label === displayValue,
   );
 
   const updateDropdownPosition = useCallback(() => {
@@ -191,7 +197,7 @@ export function SelectorCountry({
         aria-haspopup="listbox"
         aria-label={
           selectedOption
-            ? `Selecionar idioma: ${selectedOption.label}`
+            ? `Selecionar idioma: ${selectedOption.name}`
             : "Selecionar idioma"
         }
         className={cn(
@@ -218,7 +224,7 @@ export function SelectorCountry({
 
         {!hideLabelText && (
           <span className="min-w-0 flex-1 truncate text-left">
-            {selectedOption?.label ?? placeholder}
+            {selectedOption?.name ?? placeholder}
           </span>
         )}
 
@@ -267,7 +273,7 @@ export function SelectorCountry({
                 type="button"
               >
                 <CountryFlag option={option} />
-                <span className="flex-1 text-left">{option.label}</span>
+                <span className="flex-1 text-left">{option.name}</span>
                 {isSelected && (
                   <Check aria-hidden="true" className="size-4 shrink-0" />
                 )}

@@ -2,8 +2,8 @@ import { pathToFileURL } from "node:url";
 
 const expected = {
   version: 1,
-  phase: "pilot-only",
-  globalActivationAllowed: false,
+  phase: "multilingual",
+  globalActivationAllowed: true,
   protocolVersion: 1,
   captureWhileProcessing: true,
   sampleRate: 16000,
@@ -56,6 +56,9 @@ export async function verifySpeechBackend(baseUrl, request = fetch) {
       !Object.entries(expected).every(
         ([key, value]) => contract?.[key] === value,
       ) ||
+      !["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"].every((locale) =>
+        contract?.supportedLocales?.includes(locale),
+      ) ||
       !events.every(
         (event) =>
           typeof document?.["x-websocket-events"]?.[`speech_${event}`] ===
@@ -64,7 +67,7 @@ export async function verifySpeechBackend(baseUrl, request = fetch) {
       )
     )
       throw new Error("STT_BACKEND_INCOMPATIBLE");
-    return "SPEECH_BACKEND_COMPATIBLE_PILOT_ONLY";
+    return "SPEECH_BACKEND_COMPATIBLE_MULTILINGUAL";
   } catch (error) {
     throw new Error(
       error?.message === "STT_RESPONSE_TOO_LARGE"

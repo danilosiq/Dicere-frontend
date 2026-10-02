@@ -1,7 +1,8 @@
+import type { ServerSpeechLocale } from "@/core/services/server-speech/languages";
 export type SpeechStart = {
   version: 1;
   roomId: string;
-  locale: "pt-BR";
+  locale: ServerSpeechLocale;
   format: "pcm_s16le";
   sampleRate: 16000;
   channels: 1;

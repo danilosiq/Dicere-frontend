@@ -40,7 +40,7 @@ const SPEECH_RECOGNITION_LOCALES: Record<DeepLTargetLanguage, string> = {
 /**
  * All selector languages can use the multilingual local recognizer. This is
  * availability, not a claim that every language passes the quality/SLA gates.
- * The internal pilot recognizer remains restricted separately to PT-BR.
+ * The server recognizer supports PT-BR, EN, ES, DE and ZH independently.
  */
 export const SUPPORTED_SPEECH_SOURCE_LANGUAGES = Object.keys(
   SPEECH_RECOGNITION_LOCALES,

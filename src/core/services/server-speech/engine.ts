@@ -2,6 +2,7 @@ import { getSocket } from "../socket-service";
 import { StreamingSpeechClient } from "./client";
 import { SpeechMicrophone } from "./microphone";
 import { StreamingSegmenter } from "./segmenter";
+import { isServerSpeechLocale } from "./languages";
 
 type Stage = "preparing" | "microphone" | "listening";
 export type ServerSpeechOptions = {
@@ -23,8 +24,11 @@ export class ServerSpeechEngine {
   private readonly leaving = () => this.stop();
 
   constructor(private readonly options: ServerSpeechOptions) {
-    this.client = new StreamingSpeechClient(options.roomId, (code) =>
-      this.fail(code),
+    this.client = new StreamingSpeechClient(
+      options.roomId,
+      (code) => this.fail(code),
+      undefined,
+      isServerSpeechLocale(options.locale) ? options.locale : "pt-BR",
     );
     const segmenter = new StreamingSegmenter({
       start: () => this.client.start(),
@@ -45,7 +49,7 @@ export class ServerSpeechEngine {
 
   async start() {
     try {
-      if (this.options.locale !== "pt-BR")
+      if (!isServerSpeechLocale(this.options.locale))
         throw new Error("STT_LANGUAGE_UNSUPPORTED");
       getSocket().on("disconnect", this.disconnect);
       document.addEventListener("visibilitychange", this.visibility);

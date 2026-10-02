@@ -60,7 +60,16 @@ export async function createClient(
 }
 
 function languageOption(page, language) {
-  const escaped = language.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const names = {
+    "PT-BR": "Português",
+    EN: "Inglês",
+    ES: "Espanhol",
+    DE: "Alemão",
+    "ZH-HANS": "Chinês",
+  };
+  const name = names[language];
+  if (!name) throw new Error("UNSUPPORTED_BROWSER_TEST_LANGUAGE");
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return page
     .getByRole("option")
     .filter({ hasText: new RegExp(`^\\s*${escaped}\\s*$`) });

@@ -86,9 +86,9 @@ describe("SubtitleCamp", () => {
     expect(screen.getByText("Idioma falado")).toBeTruthy();
     expect(screen.getByText("Você lê: IT")).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: "Selecionar idioma: PT-BR" }),
+      screen.getByRole("button", { name: "Selecionar idioma: Português" }),
     );
-    fireEvent.click(screen.getByRole("option", { name: /ESES$/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Espanhol$/ }));
     expect(onLanguageChange).toHaveBeenCalledWith("ES");
     expect(screen.getByText("Você lê: IT")).toBeTruthy();
   });
@@ -119,7 +119,7 @@ describe("SubtitleCamp", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Selecionar idioma: PT-BR" }),
+      screen.getByRole("button", { name: "Selecionar idioma: Português" }),
     ).toBeTruthy();
     const feed = screen.getByLabelText("Legenda traduzida");
     expect(within(feed).getByText("Primeira tradução")).toBeTruthy();

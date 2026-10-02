@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import { isServerSpeechLocale } from "@/core/services/server-speech/languages";
 import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
@@ -83,14 +84,16 @@ describe("useSpeechTranslation with local transcripts", () => {
       );
       expect(mocks.localSpeech).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          enabled: language !== "PT-BR",
+          enabled: !isServerSpeechLocale(toSpeechRecognitionLocale(language)),
           locale: toSpeechRecognitionLocale(language),
         }),
       );
       expect(mocks.serverSpeech).toHaveBeenLastCalledWith(
-        expect.objectContaining({ enabled: language === "PT-BR" }),
+        expect.objectContaining({
+          enabled: isServerSpeechLocale(toSpeechRecognitionLocale(language)),
+        }),
       );
-      if (language !== "PT-BR") {
+      if (!isServerSpeechLocale(toSpeechRecognitionLocale(language))) {
         act(() => mocks.onText?.("Recognized text"));
         expect(mocks.sendSpeech).toHaveBeenLastCalledWith(
           expect.objectContaining({

@@ -1,6 +1,7 @@
 import type { SpeechStart } from "@/core/@types/server-speech";
 import { recordSpeechTranslationMetric } from "../speech-translation-service";
 import { requestSpeech } from "./transport";
+import type { ServerSpeechLocale } from "./languages";
 
 type Command =
   | { type: "start" | "finish"; observedAt: number }
@@ -20,11 +21,12 @@ export class StreamingSpeechClient {
     roomId: string,
     private readonly onError: (code: string) => void,
     private readonly request = requestSpeech,
+    locale: ServerSpeechLocale = "pt-BR",
   ) {
     this.payload = {
       version: 1,
       roomId,
-      locale: "pt-BR",
+      locale,
       format: "pcm_s16le",
       sampleRate: 16000,
       channels: 1,

@@ -4,8 +4,9 @@ import { verifySpeechBackend } from "./speech-compatibility.mjs";
 
 const contract = {
   version: 1,
-  phase: "pilot-only",
-  globalActivationAllowed: false,
+  phase: "multilingual",
+  globalActivationAllowed: true,
+  supportedLocales: ["pt-BR", "en-US", "es-ES", "de-DE", "zh-CN"],
   protocolVersion: 1,
   captureWhileProcessing: true,
   sampleRate: 16000,
@@ -36,7 +37,7 @@ test("accepts the compatible pilot contract without claiming quality approval", 
       return respond()();
     },
   );
-  assert.equal(result, "SPEECH_BACKEND_COMPATIBLE_PILOT_ONLY");
+  assert.equal(result, "SPEECH_BACKEND_COMPATIBLE_MULTILINGUAL");
   assert.equal(observed.url, "https://api.example/openapi.json");
   assert.equal(observed.options.redirect, "error");
   assert.ok(observed.options.signal instanceof AbortSignal);
@@ -56,10 +57,10 @@ for (const [name, body] of [
     { ...document, "x-speech-release": { ...contract, protocolVersion: 2 } },
   ],
   [
-    "unreviewed global release",
+    "disabled multilingual release",
     {
       ...document,
-      "x-speech-release": { ...contract, globalActivationAllowed: true },
+      "x-speech-release": { ...contract, globalActivationAllowed: false },
     },
   ],
   ["missing events", { ...document, "x-websocket-events": {} }],

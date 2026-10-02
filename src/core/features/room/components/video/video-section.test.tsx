@@ -90,16 +90,16 @@ describe("server speech privacy gate", () => {
     },
   );
 
-  it("uses local multilingual capture in a pilot and requires consent again for PT-BR", () => {
+  it("requires consent for English as well as Portuguese in a pilot", () => {
     const pilot = "550e8400-e29b-41d4-a716-446655440000";
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
     mocks.room = { id: pilot, participants: [] };
     render(<VideoSection call={call} />);
     expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
     act(() => mocks.subtitle.mock.calls.at(-1)?.[0].onLanguageChange("EN"));
-    expect(screen.queryByLabelText("Privacidade da transcrição")).toBeNull();
+    expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();
     expect(mocks.speech).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: "EN", enabled: true }),
+      expect.objectContaining({ language: "EN", enabled: false }),
     );
     act(() => mocks.subtitle.mock.calls.at(-1)?.[0].onLanguageChange("PT-BR"));
     expect(screen.getByLabelText("Privacidade da transcrição")).toBeTruthy();

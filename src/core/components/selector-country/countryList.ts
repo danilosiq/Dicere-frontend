@@ -49,41 +49,13 @@ export function isDeepLTargetLanguage(
 }
 
 export const COUNTRY_LIST = [
-  { label: "BG", flag: "BG" },
-  { label: "CS", flag: "CZ" },
-  { label: "DA", flag: "DK" },
-  { label: "DE", flag: "DE" },
-  { label: "EL", flag: "GR" },
-  { label: "EN", flag: "US" },
-  { label: "EN-GB", flag: "GB" },
-  { label: "EN-US", flag: "US" },
-  { label: "ES", flag: "ES" },
-  { label: "ET", flag: "EE" },
-  { label: "FI", flag: "FI" },
-  { label: "FR", flag: "FR" },
-  { label: "HU", flag: "HU" },
-  { label: "ID", flag: "ID" },
-  { label: "IT", flag: "IT" },
-  { label: "JA", flag: "JP" },
-  { label: "KO", flag: "KR" },
-  { label: "LT", flag: "LT" },
-  { label: "LV", flag: "LV" },
-  { label: "NB", flag: "NO" },
-  { label: "NL", flag: "NL" },
-  { label: "PL", flag: "PL" },
-  { label: "PT", flag: "PT" },
-  { label: "PT-BR", flag: "BR" },
-  { label: "PT-PT", flag: "PT" },
-  { label: "RO", flag: "RO" },
-  { label: "RU", flag: "RU" },
-  { label: "SK", flag: "SK" },
-  { label: "SL", flag: "SI" },
-  { label: "SV", flag: "SE" },
-  { label: "TR", flag: "TR" },
-  { label: "UK", flag: "UA" },
-  { label: "ZH", flag: "CN" },
-  { label: "ZH-HANS", flag: "CN" },
+  { label: "PT-BR", flag: "BR", name: "Português" },
+  { label: "EN", flag: "US", name: "Inglês" },
+  { label: "ES", flag: "ES", name: "Espanhol" },
+  { label: "DE", flag: "DE", name: "Alemão" },
+  { label: "ZH-HANS", flag: "CN", name: "Chinês" },
 ] as const satisfies ReadonlyArray<{
   label: (typeof DEEPL_TARGET_LANGUAGES)[number];
   flag: CountryCode;
+  name: string;
 }>;

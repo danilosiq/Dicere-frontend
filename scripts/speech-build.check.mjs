@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Docker build refuses the unapproved global speech switch", () => {
+test("Docker build accepts explicit rollout values and rejects malformed switches", () => {
   const dockerfile = readFileSync("Dockerfile", "utf8");
   const gate = dockerfile.match(
     /RUN (if \[ "\$NEXT_PUBLIC_SPEECH_SERVER_ENABLED"[^]*?\n\s*fi)/,
@@ -14,8 +14,8 @@ test("Docker build refuses the unapproved global speech switch", () => {
       encoding: "utf8",
       env: { NEXT_PUBLIC_SPEECH_SERVER_ENABLED: value },
     });
-    assert.equal(result.status, value === "false" ? 0 : 1);
-    if (value !== "false")
-      assert.match(result.stderr, /^STT_PUBLIC_RELEASE_BLOCKED\n$/);
+    assert.equal(result.status, value === "" ? 1 : 0);
+    if (value === "")
+      assert.match(result.stderr, /^STT_INVALID_CONFIGURATION\n$/);
   }
 });

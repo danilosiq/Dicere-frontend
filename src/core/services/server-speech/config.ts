@@ -1,4 +1,6 @@
 import type { DeepLTargetLanguage } from "@/core/components";
+import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
+import { isServerSpeechLocale } from "./languages";
 
 const roomIdPattern =
   /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -7,9 +9,14 @@ export function isServerSpeechEnabled(
   roomId?: string,
   language: DeepLTargetLanguage = "PT-BR",
 ) {
-  // The current release is pilot-only. A legacy global flag cannot bypass
-  // the unresolved quality/capacity gates or widen the selected rooms.
-  if (!roomId || language !== "PT-BR") return false;
+  if (
+    !roomId ||
+    !roomIdPattern.test(roomId) ||
+    !isServerSpeechLocale(toSpeechRecognitionLocale(language))
+  )
+    return false;
+  if (!(process.env.NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS ?? "").trim())
+    return process.env.NEXT_PUBLIC_SPEECH_SERVER_ENABLED === "true";
   const rooms = (process.env.NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS ?? "")
     .split(",")
     .map((value) => value.trim());

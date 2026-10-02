@@ -4,6 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { SelectorCountry } from "@/core/components/selector-country";
 
 describe("SelectorCountry", () => {
+  it.each([
+    ["EN-US", "Inglês"],
+    ["EN-GB", "Inglês"],
+    ["ZH", "Chinês"],
+  ] as const)("shows the name for existing %s selections", (value, name) => {
+    render(<SelectorCountry value={value} onSelect={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: `Selecionar idioma: ${name}` }),
+    ).toBeTruthy();
+  });
   it("keeps the regular trigger label by default", () => {
     render(<SelectorCountry onSelect={vi.fn()} placeholder="Idioma falado" />);
 
@@ -26,13 +36,16 @@ describe("SelectorCountry", () => {
     expect(trigger.parentElement?.className).toContain("shrink-0");
 
     fireEvent.click(trigger);
-    const option = screen.getByRole("option", { name: /PT-BR/ });
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent?.trim()),
+    ).toEqual(["Português", "Inglês", "Espanhol", "Alemão", "Chinês"]);
+    const option = screen.getByRole("option", { name: /Português/ });
     expect(option).toBeTruthy();
     fireEvent.click(option);
 
     expect(onSelect).toHaveBeenCalledWith("PT-BR");
     expect(
-      screen.getByRole("button", { name: "Selecionar idioma: PT-BR" }),
+      screen.getByRole("button", { name: "Selecionar idioma: Português" }),
     ).toBeTruthy();
     expect(screen.queryByText("PT-BR")).toBeNull();
     expect(screen.getByLabelText("Bandeira BR")).toBeTruthy();

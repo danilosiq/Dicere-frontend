@@ -30,6 +30,7 @@ vi.mock("../socket-service", () => ({
   getSocket: () => ({ on: mocks.on, off: mocks.off }),
 }));
 import { ServerSpeechEngine } from "./engine";
+import { isServerSpeechLocale } from "./languages";
 import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
 import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
 
@@ -78,7 +79,11 @@ describe("ServerSpeechEngine", () => {
     expect(mocks.start).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
-  it.each(DEEPL_TARGET_LANGUAGES.filter((language) => language !== "PT-BR"))(
+  it.each(
+    DEEPL_TARGET_LANGUAGES.filter(
+      (language) => !isServerSpeechLocale(toSpeechRecognitionLocale(language)),
+    ),
+  )(
     "refuses unsupported spoken %s before capture or service access",
     async (language) => {
       const { engine, onError } = setup(toSpeechRecognitionLocale(language));

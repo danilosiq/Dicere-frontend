@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { isServerSpeechEnabled } from "./config";
 import { DEEPL_TARGET_LANGUAGES } from "@/core/components/selector-country/countryList";
+import { toSpeechRecognitionLocale } from "@/core/utils/speech-recognition-language";
+import { isServerSpeechLocale } from "./languages";
 
 const pilot = "550e8400-e29b-41d4-a716-446655440000";
 const other = "550e8400-e29b-41d4-a716-446655440001";
@@ -15,7 +17,9 @@ it.each(DEEPL_TARGET_LANGUAGES)(
   "routes the pilot locale %s to its appropriate engine",
   (language) => {
     vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
-    expect(isServerSpeechEnabled(pilot, language)).toBe(language === "PT-BR");
+    expect(isServerSpeechEnabled(pilot, language)).toBe(
+      isServerSpeechLocale(toSpeechRecognitionLocale(language)),
+    );
   },
 );
 
@@ -45,9 +49,9 @@ it.each([
   },
 );
 
-it("does not globally activate an unapproved release through a legacy flag", () => {
+it("activates the released languages but preserves an explicit room list", () => {
   vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_ENABLED", "true");
-  expect(isServerSpeechEnabled(other)).toBe(false);
+  expect(isServerSpeechEnabled(other)).toBe(true);
   vi.stubEnv("NEXT_PUBLIC_SPEECH_SERVER_CANARY_ROOM_IDS", pilot);
   expect(isServerSpeechEnabled(pilot)).toBe(true);
   expect(isServerSpeechEnabled(other)).toBe(false);

@@ -72,7 +72,16 @@ function selectSourceLanguage(language = "PT-BR") {
       name: /Selecionar idioma(?:$|:)/,
     }),
   );
-  fireEvent.click(screen.getByRole("option", { name: new RegExp(language) }));
+  const name = {
+    "PT-BR": "Português",
+    EN: "Inglês",
+    ES: "Espanhol",
+    DE: "Alemão",
+    "ZH-HANS": "Chinês",
+  }[language];
+  fireEvent.click(
+    screen.getByRole("option", { name: new RegExp(name ?? language) }),
+  );
 }
 
 function renderChatSection({

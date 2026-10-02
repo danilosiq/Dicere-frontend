@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { SpeechEvent, SpeechPayload } from "@/core/@types/server-speech";
 import { getSocket } from "../socket-service";
+import { serverSpeechLocales } from "./languages";
 
 const acknowledgement = z
   .object({
@@ -13,7 +14,7 @@ const acknowledgement = z
     version: z.literal(1).optional(),
     sequence: z.number().int().nonnegative().optional(),
     segments: z.number().int().nonnegative().optional(),
-    locale: z.literal("pt-BR").optional(),
+    locale: z.enum(serverSpeechLocales).optional(),
   })
   .strict();
 

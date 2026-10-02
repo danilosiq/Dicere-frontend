@@ -7,6 +7,7 @@ export type DeepLTargetLanguage = (typeof DEEPL_TARGET_LANGUAGES)[number];
 export type CountryOption = {
   label: DeepLTargetLanguage;
   flag: keyof typeof Flags;
+  name: string;
 };
 
 export type SelectorCountryProps = {

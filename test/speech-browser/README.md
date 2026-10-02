@@ -42,20 +42,42 @@ do reconhecedor; a matriz real abaixo permanece independente.
 
 `npm run test:subtitle-visibility` transpila o helper real de apresentação e
 exercita sua seleção e rolagem com layout real no Chromium, em loopback. Após
-2/3/4 e chegada tardia de 1, a janela mostra 1/3/4 em ordem de fala; a primeira
+2/3/4 e chegada tardia de 1, o histórico mostra 1/2/3/4 em ordem de fala; a primeira
 linha do trecho recuperado fica dentro do viewport, sem rolar a página. IDs com
 aspas também são exercitados. O fechamento do navegador é limitado e não aceita
 encerramento forçado. Roda no CI antes do build, sem API, áudio ou modelo.
 
 Vitest cobre separadamente a composição socket/hook/React, ordem local de
-recebimento, retenção de 100 trechos recentes, duplicatas/revisões, anúncio
-acessível e métricas. A janela visual continua limitada a três trechos; não é
-arquivo permanente de conversa nem comprovação de qualidade ou latência de voz.
+recebimento, retenção de todos os trechos da sessão, duplicatas/revisões, anúncio
+acessível e métricas. O painel não corta os três últimos trechos; oferece scroll
+sem barra visível e preserva quem lê acima. Não é arquivo permanente de conversa
+nem comprovação de qualidade ou latência de voz.
+
+## Idiomas e histórico na interface
+
+`node test/speech-browser/room-language-flow.mjs` abre duas sessões, cria uma
+sala exclusiva na API pública e a encerra no cleanup. Verifica os dois idiomas
+nos formulários, origem compartilhada entre fala/chat, troca confirmada do destino
+e persistência real dos quatro destinos PT-BR/EN/ES/ZH-HANS. O microfone é
+mutado antes do consentimento: nenhuma fala é enviada à transcrição/tradução.
+
+Somente as legendas recebidas são simuladas no transporte do navegador. O teste
+confere 16 entradas, texto original ausente, altura, scrollbar invisível, leitura
+preservada e rolagem por teclado no layout real desktop/mobile, claro/escuro.
+Isso valida UI, não qualidade do motor, DeepL nem latência da conversa.
+
+Padrões: `UI_TEST_URL=https://dicere.cloud` e
+`UI_TEST_API=https://api.dicere.cloud`. `UI_TEST_PROXY=http://127.0.0.1:3104`
+serve um bundle candidato só nos navegadores do teste, sem interceptar a API;
+esse modo não é validação do front publicado. `UI_TEST_EVIDENCE_DIR` aponta
+opcionalmente para um diretório privado existente de screenshots sintéticos.
+Não roda automaticamente no CI porque cria uma sala de produção; os testes
+isolados de componente/hook/layout e compatibilidade da API continuam no CI.
 
 ## Ensaio fim a fim
 
 Este executor abre duas sessões reais do Dicere, cria uma sala exclusiva,
-seleciona IT/ES como destinos, aceita o aviso e injeta PCM somente na entrada do
+seleciona os destinos configurados (EN por padrão), aceita o aviso e injeta PCM somente na entrada do
 microfone de STT. AudioWorklet, segmentação, Socket.IO, backend, modelo e DeepL
 são os reais da aplicação. Não é simulação de STT/tradução nem medição acústica
 do microfone físico.

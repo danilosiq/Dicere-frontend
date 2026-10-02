@@ -15,7 +15,8 @@ function waitEvent(socket, event, action) {
       socket.off(event, success);
       socket.off("error", failure);
       socket.off("connect_error", failure);
-      error ? reject(error) : resolve(value);
+      if (error) reject(error);
+      else resolve(value);
     }
     socket.once(event, success);
     socket.once("error", failure);

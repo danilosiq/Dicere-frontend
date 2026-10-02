@@ -186,6 +186,15 @@ export async function joinClients(
   }
   stage("guest-room-ready");
   for (const { page } of clients) {
+    const sourceLanguage = process.env.SPEECH_TEST_SOURCE_LANGUAGE;
+    if (sourceLanguage && sourceLanguage !== "PT-BR") {
+      await page
+        .getByText("Idioma falado", { exact: true })
+        .locator("..")
+        .getByRole("button", { name: /Selecionar idioma/ })
+        .click();
+      await languageOption(page, sourceLanguage).click();
+    }
     stage("speech-consent");
     try {
       await page

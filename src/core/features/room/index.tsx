@@ -2,6 +2,8 @@
 
 import { Column, Row } from "@/core/components/layout";
 import { useCallSession } from "@/core/hooks/use-call-session";
+import { useRoomConnection } from "@/core/hooks/use-room-connection";
+import { disconnectSocket } from "@/core/services/socket-service";
 import { useRoomSessionStore } from "@/core/store/room-session-store";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -16,6 +18,7 @@ export function RoomScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const call = useCallSession();
+  useRoomConnection();
   const [copyInviteStatus, setCopyInviteStatus] =
     useState<CopyInviteStatus>("idle");
   const clearRoomSession = useRoomSessionStore((state) => state.clearSession);
@@ -46,6 +49,8 @@ export function RoomScreen() {
 
   function handleLeaveCall() {
     call.leaveCall();
+    // Room presence exists even when media permission prevented join-call.
+    disconnectSocket();
     clearRoomSession();
     router.replace("/");
   }

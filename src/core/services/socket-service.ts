@@ -41,7 +41,6 @@ export function connectSocket() {
 }
 
 export function disconnectSocket() {
-  if (socket?.connected) {
-    socket.disconnect();
-  }
+  // Also cancel a pending connect or Socket.IO's automatic reconnection.
+  socket?.disconnect();
 }

@@ -8,7 +8,7 @@ import type {
 } from "@/core/@types/room";
 import type { SocketEventErrorPayload } from "@/core/@types/socket-events";
 import { api } from "@/core/services/api-service";
-import { getSocket } from "@/core/services/socket-service";
+import { disconnectSocket, getSocket } from "@/core/services/socket-service";
 
 const JOIN_ROOM_TIMEOUT_MS = 10_000;
 const RECONNECT_RETRY_DELAY_MS = 250;
@@ -161,6 +161,8 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
     const emitJoinRoom = () => socket.emit("join_room", payload);
     const timeoutId = window.setTimeout(() => {
       settle(() => {
+        // The server may still be admitting this socket; disconnect rolls it back.
+        disconnectSocket();
         reject(
           new RoomAccessError({
             code: "JOIN_ROOM_TIMEOUT",

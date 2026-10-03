@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RoomRouteGate } from "@/core/features/room/utils/room-route-gate";
@@ -59,5 +59,22 @@ describe("RoomRouteGate", () => {
 
     expect(screen.getByText("Sala liberada")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("does not race explicit exit back into the room's join drawer", async () => {
+    useRoomSessionStore.setState({
+      room: {
+        id: "room-id",
+        code: "ABC-234-K9X",
+        title: "Daily",
+        status: "ACTIVE",
+        participants: [],
+      },
+      isJoined: true,
+    });
+    render(<RoomRouteGate roomCode="ABC-234-K9X" />);
+    act(() => useRoomSessionStore.getState().clearSession());
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    expect(replace).not.toHaveBeenCalledWith("/?roomCode=ABC-234-K9X");
   });
 });

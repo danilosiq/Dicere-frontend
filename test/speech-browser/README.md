@@ -76,6 +76,12 @@ isolados de componente/hook/layout e compatibilidade da API continuam no CI.
 
 ## Ensaio fim a fim
 
+O ensaio de [presença e reconexão](../../docs/room-reconnection.md) é separado
+da qualidade de fala: `node test/speech-browser/room-reconnection.mjs` cobre F5,
+saída sem mídia, perda de transporte e substituição com APIs reais e salas próprias.
+`UI_TEST_MEDIA=allowed` exige também confirmação real de entrada WebRTC com
+dispositivos sintéticos. Não contata STT/DeepL.
+
 O executor aceita gravações de até 120 s; este é um limite de segurança do
 teste, não do produto. O motor servidor continua capturando e enviando janelas
 de até 12 s (PT/Chinês) ou 6 s (EN/ES), preferindo uma pausa de 200 ms após

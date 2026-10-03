@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RoomJoinedPayload } from "@/core/@types/room";
 import type { DicereSocket } from "@/core/services/socket-service";
-import { getSocket } from "@/core/services/socket-service";
+import { disconnectSocket, getSocket } from "@/core/services/socket-service";
 import { joinRoom } from "@/core/services/room-service";
 
 vi.mock("@/core/services/socket-service", () => ({
   getSocket: vi.fn(),
+  disconnectSocket: vi.fn(),
 }));
 
 type Handler = (...args: never[]) => void;
@@ -106,5 +107,22 @@ describe("room service", () => {
       code: "INVALID_ROOM_PASSWORD",
       message: "Senha incorreta.",
     });
+  });
+
+  it("closes a timed-out admission so it cannot leave an invisible participant", async () => {
+    vi.useFakeTimers();
+    const fake = makeSocket();
+    vi.mocked(getSocket).mockReturnValue(fake.socket);
+    vi.mocked(disconnectSocket).mockClear();
+    const request = joinRoom(payload);
+    const rejected = expect(request).rejects.toMatchObject({
+      code: "JOIN_ROOM_TIMEOUT",
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejected;
+    expect(disconnectSocket).toHaveBeenCalledOnce();
+    expect(fake.listenerCount("room_joined")).toBe(0);
+    fake.serverEmit("room_joined", confirmation);
+    vi.useRealTimers();
   });
 });

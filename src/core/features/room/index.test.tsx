@@ -7,6 +7,7 @@ import { useRoomSessionStore } from "@/core/store/room-session-store";
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   writeText: vi.fn(),
+  disconnectSocket: vi.fn(),
   callSession: {
     microphoneEnabled: true,
     cameraEnabled: true,
@@ -45,6 +46,13 @@ vi.mock("@/core/hooks/use-call-session", () => ({
   useCallSession: () => mocks.callSession,
 }));
 
+vi.mock("@/core/hooks/use-room-connection", () => ({
+  useRoomConnection: vi.fn(),
+}));
+vi.mock("@/core/services/socket-service", () => ({
+  disconnectSocket: mocks.disconnectSocket,
+}));
+
 vi.mock("@/core/features/room/components/video/video-section", () => ({
   VideoSection: () => <div>Vídeo</div>,
 }));
@@ -66,6 +74,7 @@ describe("RoomScreen call tools", () => {
       },
     );
     mocks.replace.mockReset();
+    mocks.disconnectSocket.mockReset();
     mocks.writeText.mockReset();
     mocks.callSession.leaveCall.mockReset();
     mocks.callSession.toggleMicrophone.mockReset();
@@ -190,6 +199,7 @@ describe("RoomScreen call tools", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sair da chamada" }));
 
     expect(mocks.callSession.leaveCall).toHaveBeenCalledOnce();
+    expect(mocks.disconnectSocket).toHaveBeenCalledOnce();
     expect(useRoomSessionStore.getState().isJoined).toBe(false);
     expect(useRoomSessionStore.getState().resumeSession).toBeNull();
     expect(window.sessionStorage.getItem("dicere-room-session")).toBeNull();

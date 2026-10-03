@@ -102,15 +102,13 @@ async function joinUI(page) {
       "ROOM_JOIN_UI_FAILED",
       new URL(page.url()).pathname,
       await page.getByRole("alert").allTextContents(),
-      await page
-        .locator("input")
-        .evaluateAll((inputs) =>
-          inputs.map((input) => ({
-            name: input.name,
-            valid: input.checkValidity(),
-            validationMessage: input.validationMessage,
-          })),
-        ),
+      await page.locator("input").evaluateAll((inputs) =>
+        inputs.map((input) => ({
+          name: input.name,
+          valid: input.checkValidity(),
+          validationMessage: input.validationMessage,
+        })),
+      ),
     );
     throw error;
   }

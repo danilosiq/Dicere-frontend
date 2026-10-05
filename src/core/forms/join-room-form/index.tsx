@@ -78,6 +78,7 @@ export function JoinRoomForm({
 
   return (
     <form
+      noValidate
       className={cn("w-full", className)}
       onSubmit={handleSubmit(handleJoinRoom)}
     >

@@ -33,6 +33,10 @@ describe("localized room forms", () => {
         </SiteLanguageProvider>,
       );
       await screen.findByText(t("Título da sala"));
+      expect(
+        screen.getByLabelText(new RegExp(t("Título da sala"))).closest("form")
+          ?.noValidate,
+      ).toBe(true);
       fireEvent.change(screen.getByLabelText(new RegExp(t("Título da sala"))), {
         target: { value: "Título original" },
       });

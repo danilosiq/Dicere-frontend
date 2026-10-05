@@ -132,14 +132,8 @@ try {
         await page
           .getByRole("button", { name: scenario.spoken, exact: true })
           .waitFor();
-        // Dispatch submits through the actual RHF/Zod path without creating a room.
-        await page
-          .locator("form")
-          .evaluate((form) =>
-            form.dispatchEvent(
-              new Event("submit", { bubbles: true, cancelable: true }),
-            ),
-          );
+        // Click the real submit button: translated Zod validation, not browser tooltips.
+        await page.locator('form button[type="submit"]').click();
         await page.getByText(scenario.invalid, { exact: true }).waitFor();
         if (scenario.locale === "zh-CN" && width === 320 && theme === "dark")
           await page.screenshot({

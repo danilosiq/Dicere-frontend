@@ -40,7 +40,11 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(handleCreateRoom)} className="w-full">
+    <form
+      noValidate
+      onSubmit={handleSubmit(handleCreateRoom)}
+      className="w-full"
+    >
       <Column className="w-full gap-3">
         <InputText
           label={t("Título da sala")}

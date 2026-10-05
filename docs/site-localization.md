@@ -30,6 +30,8 @@ legendas recebidas nunca passam pelo tradutor da interface. Os detalhes
 desconhecidos de erro do servidor/navegador usam feedback genérico localizado;
 as mensagens conhecidas e os limites/tentativas preservam suas instruções.
 Nenhuma API de tradução é chamada para a interface e nenhuma dependência foi adicionada.
+Formulários usam validação Zod com `noValidate` para que os avisos nativos do
+navegador não ignorem o idioma escolhido manualmente no site.
 As imagens decorativas existentes continuam sendo os assets originais.
 
 ## Validação

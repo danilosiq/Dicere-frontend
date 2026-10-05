@@ -4,6 +4,16 @@ Edição feita com a ferramenta integrada de imagens, a partir dos PNGs originai
 Os originais foram preservados. As seis versões ficam em
 `src/core/assets/images/localized/`: `dicere-photo-1-{en,es,zh-CN}.png` e
 `salui-guy-{en,es,zh-CN}.png`.
+As versões servidas ao navegador são WebP lossless irmãos dos PNGs, gerados uma
+vez com Sharp (já fornecido pelo Next). Preservam pixels visíveis e transparência,
+com arquivos menores; os PNGs continuam como fontes de edição.
+
+Em produção, a requisição de otimização WebP de uma arte ficou pendente por mais
+de 30 segundos, mesmo com o PNG respondendo HTTP 200 rapidamente e contêineres
+sem OOM/restart. Também reproduzido via HTTP interno do contêiner com Accept
+`image/webp`. As seis versões localizadas usam `unoptimized` no componente Next
+Image: entrega estática do WebP pronto, com hash/cache immutable, sem codificação
+em tempo real na VPS. As imagens originais não foram alteradas.
 
 ## Prompts finais
 
@@ -50,3 +60,6 @@ Revisão visual dos PNGs antes da integração; testes de seleção de asset nos
 locales; regressão real em Chromium que verifica a URL da arte e `image.decode()`
 antes e depois da escolha manual/reload. A verificação automática do arquivo não
 substitui a revisão visual de texto, transparência e estilo.
+O teste espera o arquivo final em `currentSrc`, `complete` e `naturalWidth` antes
+de decodificá-lo, evitando corrida entre o primeiro frame PT-BR e o locale salvo.
+Também exige URL estática para as novas artes, prevenindo o retorno ao otimizador.

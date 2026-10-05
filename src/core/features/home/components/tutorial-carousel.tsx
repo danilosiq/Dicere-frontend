@@ -89,6 +89,7 @@ export function TutorialCarousel() {
     {
       label: t("Aproveite a chamada!"),
       image: greetingImages[locale],
+      unoptimized: locale !== "pt-BR",
     },
   ];
 
@@ -108,6 +109,7 @@ export function TutorialCarousel() {
             height={300}
             quality={100}
             src={item.image}
+            unoptimized={item.unoptimized}
           />
           <Typography
             fontFamily="baloo2"

@@ -38,6 +38,8 @@ e a saudação do tutorial mudam junto com o seletor; personagens, paleta, compo
 e transparência seguem as referências originais. Os PNGs de Português e as
 ilustrações sem frases permanecem intactos. Os assets e o processo de edição estão
 documentados em `docs/illustration-localization.md`.
+As versões novas são servidas como WebP lossless estático, sem depender da
+otimização em tempo real na VPS.
 
 ## Validação
 

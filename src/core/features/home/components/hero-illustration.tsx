@@ -16,6 +16,7 @@ interface IllustrationLayer {
   layerClassName: string;
   name: string;
   positionClassName: string;
+  unoptimized?: boolean;
 }
 
 // Keep static positioning on the outer wrapper and animate only the inner one.
@@ -58,6 +59,7 @@ function IllustrationLayer({
   layerClassName,
   name,
   positionClassName,
+  unoptimized,
 }: IllustrationLayer) {
   return (
     <span className={positionClassName} data-illustration-layer={name}>
@@ -69,6 +71,7 @@ function IllustrationLayer({
           priority
           quality={100}
           src={image}
+          unoptimized={unoptimized}
           sizes="(min-width: 1536px) 960px, (max-width: 769px) 100vw, 769px"
         />
       </span>
@@ -88,6 +91,7 @@ export function HeroIllustration() {
           key={layer.name}
           {...layer}
           image={layer.name === "base" ? heroImages[locale] : layer.image}
+          unoptimized={layer.name === "base" && locale !== "pt-BR"}
         />
       ))}
     </figure>

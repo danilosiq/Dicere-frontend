@@ -19,11 +19,17 @@ vi.mock("next/image", () => ({
   default: ({
     src,
     alt,
+    unoptimized,
   }: Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
     src: string | StaticImageData;
+    unoptimized?: boolean;
   }) => (
     // eslint-disable-next-line @next/next/no-img-element -- Test double for the production Next Image component.
-    <img src={typeof src === "string" ? src : src.src} alt={alt} />
+    <img
+      src={typeof src === "string" ? src : src.src}
+      alt={alt}
+      data-unoptimized={String(unoptimized ?? false)}
+    />
   ),
 }));
 
@@ -47,23 +53,30 @@ describe("localized illustration assets", () => {
         </SiteLanguageProvider>,
       );
       const suffix = locale === "pt-BR" ? "" : `-${locale}`;
+      const extension = locale === "pt-BR" ? "png" : "webp";
       const hero = container.querySelector(
         '[data-illustration-layer="base"] img',
       );
       await waitFor(() =>
         expect(hero?.getAttribute("src")).toContain(
-          `dicere-photo-1${suffix}.png`,
+          `dicere-photo-1${suffix}.${extension}`,
         ),
       );
+      expect(hero?.getAttribute("data-unoptimized")).toBe(
+        String(locale !== "pt-BR"),
+      );
       expect(
-        container.querySelector(`img[src*="salui-guy${suffix}.png"]`),
+        container.querySelector(`img[src*="salui-guy${suffix}.${extension}"]`),
       ).not.toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /^ZH$/ }));
       await waitFor(() =>
-        expect(hero?.getAttribute("src")).toContain("dicere-photo-1-zh-CN.png"),
+        expect(hero?.getAttribute("src")).toContain(
+          "dicere-photo-1-zh-CN.webp",
+        ),
       );
+      expect(hero?.getAttribute("data-unoptimized")).toBe("true");
       expect(
-        container.querySelector('img[src*="salui-guy-zh-CN.png"]'),
+        container.querySelector('img[src*="salui-guy-zh-CN.webp"]'),
       ).not.toBeNull();
       expect(
         container.querySelector('[data-illustration-layer="balloon"] img'),

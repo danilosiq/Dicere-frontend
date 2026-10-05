@@ -62,6 +62,23 @@ const notFoundCopy = {
 };
 let checked = 0;
 const errors = [];
+
+async function decodeLoadedImage(page, selector, filename) {
+  await page.waitForFunction(
+    ({ selector, filename }) => {
+      const image = document.querySelector(selector);
+      return (
+        image instanceof HTMLImageElement &&
+        image.complete &&
+        image.naturalWidth > 0 &&
+        image.currentSrc.includes(filename)
+      );
+    },
+    { selector, filename },
+  );
+  await page.locator(selector).evaluate((image) => image.decode());
+}
+
 try {
   // CI starts the production build immediately before this suite.
   let ready = false;
@@ -88,7 +105,7 @@ try {
         );
         const page = await context.newPage();
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(frontend);
+        await page.goto(frontend, { waitUntil: "domcontentloaded" });
         await page
           .getByRole("button", { name: scenario.site, exact: true })
           .waitFor();
@@ -105,10 +122,30 @@ try {
           ),
           "Hero must use the selected site's language",
         );
-        await hero.evaluate((image) => image.decode());
-        const greeting = page.locator(`img[src*="salui-guy${artSuffix}."]`);
+        if (scenario.locale !== "pt-BR")
+          assert.ok(
+            (await hero.getAttribute("src")).includes("/_next/static/media/"),
+            "Localized art must not depend on runtime image optimization",
+          );
+        await decodeLoadedImage(
+          page,
+          '[data-illustration-layer="base"] img',
+          `dicere-photo-1${artSuffix}.`,
+        );
+        const greetingSelector = `img[src*="salui-guy${artSuffix}."]`;
+        const greeting = page.locator(greetingSelector);
         assert.equal(await greeting.count(), 1);
-        await greeting.evaluate((image) => image.decode());
+        if (scenario.locale !== "pt-BR")
+          assert.ok(
+            (await greeting.getAttribute("src")).includes(
+              "/_next/static/media/",
+            ),
+          );
+        await decodeLoadedImage(
+          page,
+          greetingSelector,
+          `salui-guy${artSuffix}.`,
+        );
         assert.equal(
           await page
             .locator("html")
@@ -157,6 +194,7 @@ try {
           .click();
         const response = await page.goto(
           `${frontend}/localization-test-not-found`,
+          { waitUntil: "domcontentloaded" },
         );
         assert.equal(response.status(), 404);
         await page
@@ -168,7 +206,9 @@ try {
             exact: true,
           })
           .click();
-        await page.waitForURL(new URL("/", frontend).href);
+        await page.waitForURL(new URL("/", frontend).href, {
+          waitUntil: "domcontentloaded",
+        });
         await create.waitFor();
         await page
           .getByRole("button", { name: scenario.site, exact: true })
@@ -180,7 +220,7 @@ try {
           await page.evaluate(() => localStorage.getItem("dicere-site-locale")),
           "zh-CN",
         );
-        await page.reload();
+        await page.reload({ waitUntil: "domcontentloaded" });
         await page
           .getByRole("button", { name: "网站语言", exact: true })
           .waitFor();
@@ -189,7 +229,14 @@ try {
           (await hero.getAttribute("src")).includes("dicere-photo-1-zh-CN."),
           "Manual language selection must also update the illustration",
         );
-        await hero.evaluate((image) => image.decode());
+        assert.ok(
+          (await hero.getAttribute("src")).includes("/_next/static/media/"),
+        );
+        await decodeLoadedImage(
+          page,
+          '[data-illustration-layer="base"] img',
+          "dicere-photo-1-zh-CN.",
+        );
         assert.equal(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,

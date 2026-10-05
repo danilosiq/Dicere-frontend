@@ -32,7 +32,7 @@ describe("site language preference", () => {
       </SiteLanguageProvider>,
     );
     await screen.findByText("en");
-    expect(document.documentElement.lang).toBe("en");
+    await waitFor(() => expect(document.documentElement.lang).toBe("en"));
     expect(screen.getByRole("button").textContent).toBe("Create a room");
   });
   it("saves a manual selection and restores it instead of the browser language", async () => {
@@ -51,7 +51,7 @@ describe("site language preference", () => {
       </SiteLanguageProvider>,
     );
     await screen.findByText("es");
-    expect(document.documentElement.lang).toBe("es");
+    await waitFor(() => expect(document.documentElement.lang).toBe("es"));
   });
   it("ignores corrupted storage and handles cross-tab changes", async () => {
     localStorage.setItem(SITE_LOCALE_STORAGE_KEY, "DE");

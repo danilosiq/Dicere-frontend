@@ -8,11 +8,11 @@ import { Typography } from "@/core/components/typography";
 import LangChangeImage from "@/core/assets/images/homeCarousel/lang-change.png";
 import MicAndHeadPhones from "@/core/assets/images/homeCarousel/mic-and-headphones.png";
 import PlusAndPasswordImage from "@/core/assets/images/homeCarousel/plus-and-password.png";
-import SaluiGuyImage from "@/core/assets/images/homeCarousel/salui-guy.png";
 import Image from "next/image";
+import { greetingImages } from "./illustration-images";
 
 export function TutorialCarousel() {
-  const { t } = useSiteLanguage();
+  const { locale, t } = useSiteLanguage();
   const carouselItems = [
     {
       label: (
@@ -88,7 +88,7 @@ export function TutorialCarousel() {
     },
     {
       label: t("Aproveite a chamada!"),
-      image: SaluiGuyImage,
+      image: greetingImages[locale],
     },
   ];
 

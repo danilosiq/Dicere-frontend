@@ -32,7 +32,12 @@ as mensagens conhecidas e os limites/tentativas preservam suas instruções.
 Nenhuma API de tradução é chamada para a interface e nenhuma dependência foi adicionada.
 Formulários usam validação Zod com `noValidate` para que os avisos nativos do
 navegador não ignorem o idioma escolhido manualmente no site.
-As imagens decorativas existentes continuam sendo os assets originais.
+As ilustrações com frases usam versões separadas em Inglês, Espanhol e Chinês
+simplificado, selecionadas pelo mesmo locale da interface. A ilustração principal
+e a saudação do tutorial mudam junto com o seletor; personagens, paleta, composição
+e transparência seguem as referências originais. Os PNGs de Português e as
+ilustrações sem frases permanecem intactos. Os assets e o processo de edição estão
+documentados em `docs/illustration-localization.md`.
 
 ## Validação
 
@@ -41,5 +46,6 @@ As imagens decorativas existentes continuam sendo os assets originais.
   do reconhecedor de voz ao trocar somente o idioma do site.
 - `UI_TEST_URL=http://localhost:3106 node test/speech-browser/site-localization.mjs`:
   quatro idiomas, 320/1440px, light/dark, flags, validação real do formulário,
-  troca/persistência/reload e ausência de erros de página. Não cria salas nem
+  troca/persistência/reload, escolha e carregamento das artes localizadas e ausência
+  de erros de página. Não cria salas nem
   envia áudio/texto às APIs de produção.

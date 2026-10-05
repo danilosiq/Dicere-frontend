@@ -96,6 +96,19 @@ try {
           await page.locator("html").getAttribute("lang"),
           scenario.locale,
         );
+        const hero = page.locator('[data-illustration-layer="base"] img');
+        const artSuffix =
+          scenario.locale === "pt-BR" ? "" : `-${scenario.locale}`;
+        assert.ok(
+          (await hero.getAttribute("src")).includes(
+            `dicere-photo-1${artSuffix}.`,
+          ),
+          "Hero must use the selected site's language",
+        );
+        await hero.evaluate((image) => image.decode());
+        const greeting = page.locator(`img[src*="salui-guy${artSuffix}."]`);
+        assert.equal(await greeting.count(), 1);
+        await greeting.evaluate((image) => image.decode());
         assert.equal(
           await page
             .locator("html")
@@ -170,6 +183,11 @@ try {
           .getByRole("button", { name: "网站语言", exact: true })
           .waitFor();
         assert.equal(await page.locator("html").getAttribute("lang"), "zh-CN");
+        assert.ok(
+          (await hero.getAttribute("src")).includes("dicere-photo-1-zh-CN."),
+          "Manual language selection must also update the illustration",
+        );
+        await hero.evaluate((image) => image.decode());
         assert.equal(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,

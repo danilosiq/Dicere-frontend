@@ -1,3 +1,5 @@
+"use client";
+
 import Image, { type StaticImageData } from "next/image";
 
 import balloonImage from "@/core/assets/images/baloon.png";
@@ -5,6 +7,8 @@ import baseImage from "@/core/assets/images/dicere-photo-1.png";
 import lampImage from "@/core/assets/images/lamp.png";
 import sparklesImage from "@/core/assets/images/sparkles.png";
 import { cn } from "@/core/utils/cn";
+import { useSiteLanguage } from "@/core/i18n/provider";
+import { heroImages } from "./illustration-images";
 
 interface IllustrationLayer {
   animationClassName?: string;
@@ -73,13 +77,18 @@ function IllustrationLayer({
 }
 
 export function HeroIllustration() {
+  const { locale } = useSiteLanguage();
   return (
     <figure
       aria-hidden="true"
       className="relative aspect-525/348 w-full max-w-192.25 min-w-0 overflow-visible 2xl:max-w-240"
     >
       {illustrationLayers.map((layer) => (
-        <IllustrationLayer key={layer.name} {...layer} />
+        <IllustrationLayer
+          key={layer.name}
+          {...layer}
+          image={layer.name === "base" ? heroImages[locale] : layer.image}
+        />
       ))}
     </figure>
   );

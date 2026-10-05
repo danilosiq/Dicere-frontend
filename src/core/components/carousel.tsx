@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Children,
@@ -33,6 +35,7 @@ export function Carousel({
   className,
   contentClassName,
 }: CarouselProps) {
+  const { t } = useSiteLanguage();
   const slides = Children.toArray(children);
   const [api, setApi] = useState<CarouselApi>();
   const [currentSlide, setCurrentSlide] = useState(slides.length > 0 ? 1 : 0);
@@ -70,18 +73,26 @@ export function Carousel({
     <Column className={cn("w-full gap-3", className)}>
       <Row className="w-full items-center gap-3">
         <IconButton
-          ariaLabel="Slide anterior"
+          ariaLabel={t("Slide anterior")}
           className="hover:bg-primary-purple dark:hover:bg-primary-purple shrink-0 text-gray-900 hover:text-white dark:text-gray-100 dark:hover:text-white"
           disabled={!canScrollPrevious}
           icon={<ChevronLeft />}
           onClick={() => api?.scrollPrev()}
         />
 
-        <ShadcnCarousel className="min-w-0 flex-1" setApi={setApi}>
+        <ShadcnCarousel
+          aria-roledescription={t("Carrossel")}
+          className="min-w-0 flex-1"
+          setApi={setApi}
+        >
           <CarouselContent className={contentClassName}>
             {slides.map((slide, index) => (
               <CarouselItem
-                aria-label={`${index + 1} de ${slides.length}`}
+                aria-roledescription={t("Slide")}
+                aria-label={t("{index} de {total}", {
+                  index: index + 1,
+                  total: slides.length,
+                })}
                 key={index}
               >
                 {slide}
@@ -91,7 +102,7 @@ export function Carousel({
         </ShadcnCarousel>
 
         <IconButton
-          ariaLabel="Próximo slide"
+          ariaLabel={t("Próximo slide")}
           className="hover:bg-primary-purple dark:hover:bg-primary-purple shrink-0 text-gray-900 hover:text-white dark:text-gray-100 dark:hover:text-white"
           disabled={!canScrollNext}
           icon={<ChevronRight />}
@@ -101,7 +112,10 @@ export function Carousel({
 
       {showIndicators ? (
         <span
-          aria-label={`Slide ${currentSlide} de ${slides.length}`}
+          aria-label={t("Slide {index} de {total}", {
+            index: currentSlide,
+            total: slides.length,
+          })}
           aria-live="polite"
           className="self-center"
           role="status"

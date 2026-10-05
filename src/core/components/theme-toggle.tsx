@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useThemeStore, type Theme } from "@/core/store/theme-store";
 import { cn } from "@/core/utils/cn";
+import { useSiteLanguage } from "@/core/i18n/provider";
 
 export type ThemeToggleProps = {
   className?: string;
@@ -24,6 +25,7 @@ function getPreferredTheme(): Theme {
 }
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
+  const { t } = useSiteLanguage();
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
@@ -35,7 +37,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 
   return (
     <Button
-      aria-label={`Ativar tema ${isDark ? "claro" : "escuro"}`}
+      aria-label={t(isDark ? "Ativar tema claro" : "Ativar tema escuro")}
       className={cn(
         "hover:bg-primary-green dark:hover:bg-primary-green relative size-10 rounded-full p-1.5 text-gray-400 hover:text-white active:scale-95 dark:text-gray-200",
         className,

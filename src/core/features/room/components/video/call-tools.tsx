@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Button } from "@/core/components/button";
 import {
   Tooltip,
@@ -11,6 +13,7 @@ import { IconButton } from "@/core/components/icon-button";
 import { Row } from "@/core/components/layout";
 import { Logo } from "@/core/components/logo";
 import { ThemeToggle } from "@/core/components/theme-toggle";
+import { SiteLanguageSelector } from "@/core/components/site-language-selector";
 import { cn } from "@/core/utils/cn";
 import {
   Check,
@@ -59,11 +62,12 @@ export function CallTools({
   onOpenParticipants,
   onOpenSettings,
 }: CallToolsProps) {
+  const { t } = useSiteLanguage();
   const copyLabel = {
-    idle: "Compartilhar",
-    copying: "Copiando...",
-    success: "Copiado!",
-    error: "Não foi possível copiar",
+    idle: t("Compartilhar"),
+    copying: t("Copiando..."),
+    success: t("Copiado!"),
+    error: t("Não foi possível copiar"),
   }[copyInviteStatus];
   const copyIcon =
     copyInviteStatus === "success" ? (
@@ -83,7 +87,9 @@ export function CallTools({
 
         <Row className="items-center justify-center gap-2 sm:col-start-2">
           <IconButton
-            ariaLabel={isMuted ? "Ativar microfone" : "Desativar microfone"}
+            ariaLabel={
+              isMuted ? t("Ativar microfone") : t("Desativar microfone")
+            }
             className={cn(
               mediaButtonClasses,
               isMuted &&
@@ -93,11 +99,13 @@ export function CallTools({
             isActive={isMuted}
             disabled={!hasMicrophone || isLeaving}
             onClick={onMute}
-            tooltip={isMuted ? "Ativar microfone" : "Desativar microfone"}
+            tooltip={isMuted ? t("Ativar microfone") : t("Desativar microfone")}
           />
 
           <IconButton
-            ariaLabel={isVideoEnabled ? "Desativar câmera" : "Ativar câmera"}
+            ariaLabel={
+              isVideoEnabled ? t("Desativar câmera") : t("Ativar câmera")
+            }
             className={cn(
               mediaButtonClasses,
               !isVideoEnabled &&
@@ -107,20 +115,22 @@ export function CallTools({
             isActive={!isVideoEnabled}
             disabled={!hasCamera || isLeaving}
             onClick={onToggleVideo}
-            tooltip={isVideoEnabled ? "Desativar câmera" : "Ativar câmera"}
+            tooltip={
+              isVideoEnabled ? t("Desativar câmera") : t("Ativar câmera")
+            }
           />
 
           <IconButton
-            ariaLabel="Sair da chamada"
+            ariaLabel={t("Sair da chamada")}
             className="bg-error hover:bg-error/90 h-11 w-16 rounded-full text-white hover:text-white"
             icon={<Phone className="rotate-135" />}
             disabled={isLeaving}
             onClick={onLeave}
-            tooltip="Sair da chamada"
+            tooltip={t("Sair da chamada")}
           />
         </Row>
 
-        <Row className="min-w-0 items-center justify-end gap-1 justify-self-center sm:gap-2 sm:justify-self-end">
+        <Row className="max-w-full min-w-0 flex-wrap items-center justify-center gap-1 justify-self-center sm:justify-end sm:gap-2 sm:justify-self-end">
           <TooltipProvider>
             <Tooltip
               open={
@@ -130,7 +140,7 @@ export function CallTools({
               <TooltipTrigger asChild>
                 <span className="inline-flex">
                   <Button
-                    label="Compartilhar"
+                    label={t("Compartilhar")}
                     endIcon={copyIcon}
                     disabled={copyInviteStatus === "copying"}
                     onClick={onCopyInviteLink}
@@ -145,21 +155,22 @@ export function CallTools({
           </span>
 
           <ThemeToggle />
+          <SiteLanguageSelector />
 
           <IconButton
-            ariaLabel="Ver participantes"
+            ariaLabel={t("Ver participantes")}
             className="hidden sm:inline-flex"
             icon={<Users />}
             onClick={onOpenParticipants}
-            tooltip="Participantes"
+            tooltip={t("Participantes")}
           />
 
           <IconButton
-            ariaLabel="Abrir configurações"
+            ariaLabel={t("Abrir configurações")}
             className="hidden sm:inline-flex"
             icon={<Settings />}
             onClick={onOpenSettings}
-            tooltip="Configurações"
+            tooltip={t("Configurações")}
           />
         </Row>
       </div>

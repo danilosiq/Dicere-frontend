@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import {
   Tooltip,
   TooltipContent,
@@ -51,6 +53,7 @@ export function SubtitleCamp({
   onLanguageChange,
   retryRecognition,
 }: SubtitleCampProps) {
+  const { t, feedback } = useSiteLanguage();
   const historyRef = useRef<HTMLDivElement>(null);
   const renderedRef = useRef(new Set<string>());
   const followLatestRef = useRef(true);
@@ -115,8 +118,8 @@ export function SubtitleCamp({
         <Column className="min-w-0 flex-1">
           <SelectorCountry
             value={language}
-            label="Seu idioma falado"
-            placeholder="Idioma falado"
+            label={t("Seu idioma falado")}
+            placeholder={t("Idioma falado")}
             onSelect={onLanguageChange}
           />
           <Column className="mt-2">
@@ -126,8 +129,8 @@ export function SubtitleCamp({
                   ? targetLanguage
                   : undefined
               }
-              label="Idioma que está traduzindo"
-              placeholder={targetLanguage ?? "Selecione o idioma"}
+              label={t("Idioma que está traduzindo")}
+              placeholder={targetLanguage ?? t("Selecione o idioma")}
               onSelect={onTargetLanguageChange ?? (() => {})}
               disabled={!onTargetLanguageChange || isUpdatingTargetLanguage}
               error={targetLanguageError}
@@ -137,11 +140,11 @@ export function SubtitleCamp({
 
         {captionIssue?.retryable && (
           <IconButton
-            ariaLabel={captionIssue.message}
+            ariaLabel={feedback(captionIssue.message)}
             className={issueButtonClassName}
             icon={<CircleAlert />}
             onClick={retryRecognition}
-            tooltip={captionIssue.message}
+            tooltip={feedback(captionIssue.message)}
           />
         )}
 
@@ -150,27 +153,27 @@ export function SubtitleCamp({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span
-                  aria-label={captionIssue.message}
+                  aria-label={feedback(captionIssue.message)}
                   className="shrink-0"
                   role="img"
                   tabIndex={0}
                 >
                   <IconButton
-                    ariaLabel={captionIssue.message}
+                    ariaLabel={feedback(captionIssue.message)}
                     className={issueButtonClassName}
                     disabled
                     icon={<CircleAlert />}
                   />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{captionIssue.message}</TooltipContent>
+              <TooltipContent>{feedback(captionIssue.message)}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
       </Row>
 
       <div
-        aria-label="Legenda traduzida"
+        aria-label={t("Legenda traduzida")}
         className="flex min-h-0 flex-1 [scrollbar-width:none] flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4 [&::-webkit-scrollbar]:hidden"
         onScroll={(event) => {
           const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
@@ -195,7 +198,7 @@ export function SubtitleCamp({
 
       <div
         aria-atomic="true"
-        aria-label="Nova legenda traduzida"
+        aria-label={t("Nova legenda traduzida")}
         aria-live="polite"
         className="sr-only"
         role="status"

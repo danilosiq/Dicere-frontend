@@ -1,3 +1,7 @@
+"use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Column, Row } from "@/core/components/layout";
 import { Typography } from "@/core/components/typography";
 import type { ChatMessage } from "@/core/@types/chat";
@@ -33,20 +37,21 @@ export function ChatBalloon({
   onShowTranslation,
   onRetryTranslation,
 }: ChatBalloonProps) {
+  const { t, feedback } = useSiteLanguage();
   const isSender = role === "sender";
   const translationReasonId = useId();
   const balloonVariant = isSender
     ? "bg-primary-green rounded-tl-lg"
     : "bg-primary-purple rounded-tr-lg";
   const translationLabel = translation?.isLoading
-    ? "Traduzindo..."
+    ? t("Traduzindo...")
     : translation?.error
-      ? "Tentar novamente"
+      ? t("Tentar novamente")
       : translation?.displayMode === "translated"
-        ? "Ver original"
+        ? t("Ver original")
         : translation?.hasTranslation
-          ? "Ver tradução"
-          : "Traduzir";
+          ? t("Ver tradução")
+          : t("Traduzir");
 
   function handleTranslationAction() {
     if (
@@ -109,7 +114,10 @@ export function ChatBalloon({
             }
             aria-busy={translation.isLoading}
             aria-disabled={Boolean(translation.disabledReason)}
-            aria-label={`${translationLabel} mensagem de ${message.participantName}`}
+            aria-label={t("{action} mensagem de {name}", {
+              action: translationLabel,
+              name: message.participantName,
+            })}
             className={`focus-visible:ring-primary-purple mt-1 flex items-center gap-1 rounded px-1 text-sm outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${
               isSender
                 ? "text-primary-green dark:text-white"
@@ -124,7 +132,9 @@ export function ChatBalloon({
           </button>
           {translation.isLoading && (
             <span aria-live="polite" className="sr-only" role="status">
-              Traduzindo mensagem de {message.participantName}.
+              {t("Traduzindo mensagem de {name}.", {
+                name: message.participantName,
+              })}
             </span>
           )}
           {translation.disabledReason && (
@@ -132,13 +142,15 @@ export function ChatBalloon({
               className="max-w-64 text-gray-500 dark:text-gray-300"
               size="xs"
             >
-              <span id={translationReasonId}>{translation.disabledReason}</span>
+              <span id={translationReasonId}>
+                {feedback(translation.disabledReason)}
+              </span>
             </Typography>
           )}
           {translation.error && (
             <div className="max-w-64" role="alert">
               <Typography color="error" darkColor="white" size="xs">
-                {translation.error}
+                {feedback(translation.error)}
               </Typography>
             </div>
           )}

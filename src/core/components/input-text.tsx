@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Eye, EyeOff } from "lucide-react";
 import {
   forwardRef,
@@ -102,6 +104,7 @@ const InputText = forwardRef<HTMLInputElement, InputTextProps>(
     },
     ref,
   ) => {
+    const { t, feedback } = useSiteLanguage();
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const generatedId = useId();
     const inputId = id ?? generatedId;
@@ -165,7 +168,9 @@ const InputText = forwardRef<HTMLInputElement, InputTextProps>(
 
           {isPasswordInput && (
             <button
-              aria-label={isPasswordVisible ? "Ocultar senha" : "Mostrar senha"}
+              aria-label={
+                isPasswordVisible ? t("Ocultar senha") : t("Mostrar senha")
+              }
               aria-pressed={isPasswordVisible}
               className={cn(
                 "hover:text-foreground focus-visible:ring-primary-green absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 outline-none focus-visible:ring-2",
@@ -191,7 +196,7 @@ const InputText = forwardRef<HTMLInputElement, InputTextProps>(
             darkColor="white"
             size="sm"
           >
-            <span id={errorId}>{error}</span>
+            <span id={errorId}>{feedback(error)}</span>
           </Typography>
         )}
       </Column>

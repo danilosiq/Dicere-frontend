@@ -1,3 +1,7 @@
+"use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Drawer } from "@/core/components/drawer";
 import { Column } from "@/core/components/layout";
 import { JoinRoomForm } from "@/core/forms";
@@ -30,19 +34,23 @@ export function JoinRoomDrawer({
   resumeOnly,
   errorMessage,
 }: JoinRoomDrawerProps) {
+  const { t, feedback } = useSiteLanguage();
   return (
     <Drawer
-      title={resumeOnly ? "Retomar sala" : "Entrar em uma sala"}
+      title={resumeOnly ? t("Retomar sala") : t("Entrar em uma sala")}
       open={isOpen}
       onClose={onClose}
       enableCloseButton
     >
       <Column className="w-full items-center gap-10">
-        <Image src={PasswordImage} alt="password" width={200} height={200} />
+        <Image src={PasswordImage} alt="" width={200} height={200} />
 
         {resumeOnly && (
           <Typography className="text-center" size="sm">
-            Entre novamente como {initialName} na sala {initialRoomCode}.
+            {t("Entre novamente como {name} na sala {code}.", {
+              name: initialName ?? "",
+              code: initialRoomCode ?? "",
+            })}
           </Typography>
         )}
 
@@ -52,7 +60,7 @@ export function JoinRoomDrawer({
             role="alert"
           >
             <Typography color="error" darkColor="error" size="sm">
-              {errorMessage}
+              {feedback(errorMessage)}
             </Typography>
           </div>
         )}

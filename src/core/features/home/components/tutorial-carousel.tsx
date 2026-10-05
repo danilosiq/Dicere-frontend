@@ -1,3 +1,7 @@
+"use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Carousel } from "@/core/components/carousel";
 import { Column } from "@/core/components/layout";
 import { Typography } from "@/core/components/typography";
@@ -8,6 +12,7 @@ import SaluiGuyImage from "@/core/assets/images/homeCarousel/salui-guy.png";
 import Image from "next/image";
 
 export function TutorialCarousel() {
+  const { t } = useSiteLanguage();
   const carouselItems = [
     {
       label: (
@@ -19,9 +24,9 @@ export function TutorialCarousel() {
             fontWeight="semibold"
             size="xl"
           >
-            Crie
+            {t("Crie")}
           </Typography>
-          {" uma sala, ou "}
+          {t(" uma sala, ou ")}
           <Typography
             color="primary-purple"
             darkColor="light-purple"
@@ -29,9 +34,9 @@ export function TutorialCarousel() {
             fontWeight="semibold"
             size="xl"
           >
-            coloque a senha
+            {t("coloque a senha")}
           </Typography>
-          {" para entrar em uma via Link"}
+          {t(" para entrar em uma via Link")}
         </>
       ),
       image: PlusAndPasswordImage,
@@ -46,9 +51,9 @@ export function TutorialCarousel() {
             fontWeight="semibold"
             size="xl"
           >
-            Configure o idioma
+            {t("Configure o idioma")}
           </Typography>
-          {" que será traduzido"}
+          {t(" que será traduzido")}
         </>
       ),
       image: LangChangeImage,
@@ -56,7 +61,7 @@ export function TutorialCarousel() {
     {
       label: (
         <>
-          Não esqueça de configurar seu{" "}
+          {t("Não esqueça de configurar seu")}{" "}
           <Typography
             color="primary-green"
             darkColor="light-green"
@@ -64,9 +69,9 @@ export function TutorialCarousel() {
             fontWeight="semibold"
             size="xl"
           >
-            audio
+            {t("audio")}
           </Typography>
-          {" e "}
+          {t(" e ")}
           <Typography
             color="primary-purple"
             darkColor="light-purple"
@@ -74,7 +79,7 @@ export function TutorialCarousel() {
             fontWeight="semibold"
             size="xl"
           >
-            som
+            {t("som")}
           </Typography>
           !
         </>
@@ -82,7 +87,7 @@ export function TutorialCarousel() {
       image: MicAndHeadPhones,
     },
     {
-      label: "Aproveite a chamada!",
+      label: t("Aproveite a chamada!"),
       image: SaluiGuyImage,
     },
   ];

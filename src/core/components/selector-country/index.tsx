@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import * as Flags from "country-flag-icons/react/3x2";
 import { Check, ChevronDown, Languages } from "lucide-react";
 import {
@@ -27,6 +29,7 @@ const DROPDOWN_MAX_HEIGHT_PX = 288;
 type DropdownPlacement = "bottom" | "top";
 
 function CountryFlag({ option }: { option: CountryOption }) {
+  const { t } = useSiteLanguage();
   const FlagComponent = Flags[option.flag];
 
   if (!FlagComponent) {
@@ -35,7 +38,7 @@ function CountryFlag({ option }: { option: CountryOption }) {
 
   return (
     <FlagComponent
-      aria-label={`Bandeira ${option.flag}`}
+      aria-label={t("Bandeira {country}", { country: option.flag })}
       className="h-4 w-6 shrink-0 rounded-sm object-cover"
     />
   );
@@ -46,12 +49,14 @@ export function SelectorCountry({
   defaultValue,
   placeholder = "Selecionar idioma",
   label,
+  ariaLabel,
   error,
   hideLabelText = false,
   disabled = false,
   className,
   onSelect,
 }: SelectorCountryProps) {
+  const { t, feedback } = useSiteLanguage();
   const [internalValue, setInternalValue] = useState<
     DeepLTargetLanguage | undefined
   >(defaultValue);
@@ -210,10 +215,13 @@ export function SelectorCountry({
         aria-expanded={dropdownIsOpen}
         aria-haspopup="listbox"
         aria-label={
+          ariaLabel ??
           label ??
           (selectedOption
-            ? `Selecionar idioma: ${selectedOption.name}`
-            : "Selecionar idioma")
+            ? t("Selecionar idioma: {language}", {
+                language: t(selectedOption.name),
+              })
+            : t("Selecionar idioma"))
         }
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm",
@@ -239,7 +247,11 @@ export function SelectorCountry({
 
         {!hideLabelText && (
           <span className="min-w-0 flex-1 truncate text-left">
-            {selectedOption?.name ?? placeholder}
+            {selectedOption
+              ? t(selectedOption.name)
+              : placeholder === "Selecionar idioma"
+                ? t("Selecionar idioma")
+                : placeholder}
           </span>
         )}
 
@@ -253,13 +265,13 @@ export function SelectorCountry({
       </button>
       {error && (
         <p id={errorId} role="alert" className="text-error mt-1 text-sm">
-          {error}
+          {feedback(error)}
         </p>
       )}
 
       {dropdownIsOpen && (
         <div
-          aria-label="Idiomas disponíveis"
+          aria-label={t("Idiomas disponíveis")}
           className={cn(
             "absolute right-0 z-50 overflow-y-auto rounded-lg bg-white p-1 shadow-lg ring-1 ring-black/10 dark:bg-gray-900 dark:ring-white/10",
             dropdownPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1",
@@ -293,7 +305,7 @@ export function SelectorCountry({
                 type="button"
               >
                 <CountryFlag option={option} />
-                <span className="flex-1 text-left">{option.name}</span>
+                <span className="flex-1 text-left">{t(option.name)}</span>
                 {isSelected && (
                   <Check aria-hidden="true" className="size-4 shrink-0" />
                 )}

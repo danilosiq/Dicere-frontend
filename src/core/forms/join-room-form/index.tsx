@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { useEffect } from "react";
@@ -36,6 +38,7 @@ export function JoinRoomForm({
   resumeOnly = false,
   className,
 }: JoinRoomFormProps) {
+  const { t } = useSiteLanguage();
   const {
     register,
     control,
@@ -82,16 +85,16 @@ export function JoinRoomForm({
         {!resumeOnly && (
           <>
             <InputText
-              label="Código da sala"
-              placeholder="Código da sala"
+              label={t("Código da sala")}
+              placeholder={t("Código da sala")}
               mask={normalizeRoomCode}
               error={errors.roomCode?.message}
               required
               {...register("roomCode")}
             />
             <InputText
-              label="Seu nome"
-              placeholder="Seu nome"
+              label={t("Seu nome")}
+              placeholder={t("Seu nome")}
               error={errors.name?.message}
               autoComplete="name"
               required
@@ -105,10 +108,10 @@ export function JoinRoomForm({
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
-              label="Idioma que deseja receber as traduções"
+              label={t("Idioma que deseja receber as traduções")}
               error={errors.targetLanguage?.message}
               disabled={isSubmitting}
-              placeholder="Idioma das traduções recebidas"
+              placeholder={t("Idioma das traduções recebidas")}
               onSelect={field.onChange}
             />
           )}
@@ -119,8 +122,8 @@ export function JoinRoomForm({
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
-              label="Idioma que você irá falar na chamada"
-              placeholder="Selecione seu idioma falado"
+              label={t("Idioma que você irá falar na chamada")}
+              placeholder={t("Selecione seu idioma falado")}
               error={errors.spokenLanguage?.message}
               disabled={isSubmitting}
               onSelect={field.onChange}
@@ -128,8 +131,8 @@ export function JoinRoomForm({
           )}
         />
         <InputText
-          label="Senha"
-          placeholder="Password"
+          label={t("Senha")}
+          placeholder={t("Password")}
           type="password"
           error={errors.password?.message}
           autoComplete="current-password"
@@ -140,7 +143,7 @@ export function JoinRoomForm({
         <Row className="mt-5 justify-end gap-3">
           {onCancel && (
             <Button
-              label="Cancelar"
+              label={t("Cancelar")}
               variant="ghost"
               rounded="sm"
               type="button"
@@ -149,7 +152,7 @@ export function JoinRoomForm({
             />
           )}
           <Button
-            label="Confirmar"
+            label={t("Confirmar")}
             variant="secondary"
             rounded="sm"
             type="submit"

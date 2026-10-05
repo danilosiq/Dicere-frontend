@@ -15,6 +15,7 @@ export type SelectorCountryProps = {
   defaultValue?: DeepLTargetLanguage;
   placeholder?: string;
   label?: string;
+  ariaLabel?: string;
   error?: string;
   hideLabelText?: boolean;
   disabled?: boolean;

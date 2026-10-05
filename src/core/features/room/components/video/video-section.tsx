@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Row } from "@/core/components/layout";
 import { MediaStreamVideo } from "@/core/components/media-stream-video";
 import { Typography } from "@/core/components/typography";
@@ -18,6 +20,7 @@ import { isServerSpeechEnabled } from "@/core/services/server-speech/config";
 import { useTranslationLanguage } from "@/core/hooks/use-translation-language";
 
 export function VideoSection({ call }: { call: CallSession }) {
+  const { t, feedback } = useSiteLanguage();
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
   const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
@@ -51,11 +54,13 @@ export function VideoSection({ call }: { call: CallSession }) {
 
   const remoteStatus = call.isError
     ? call.errorMessage
+      ? feedback(call.errorMessage)
+      : undefined
     : call.isStarting
-      ? "Preparando sua câmera e seu microfone..."
+      ? t("Preparando sua câmera e seu microfone...")
       : call.isWaitingForParticipant
-        ? "Aguardando o outro participante..."
-        : "Conectando o vídeo do outro participante...";
+        ? t("Aguardando o outro participante...")
+        : t("Conectando o vídeo do outro participante...");
 
   return (
     <Row className="relative min-h-0 flex-1 bg-gray-100 p-4 dark:bg-black">
@@ -86,7 +91,7 @@ export function VideoSection({ call }: { call: CallSession }) {
         />
         <MediaStreamVideo
           className="min-w-0 flex-1 rounded-xl"
-          label="Vídeo do outro participante"
+          label={t("Vídeo do outro participante")}
           stream={call.remoteStream}
         />
 
@@ -106,7 +111,7 @@ export function VideoSection({ call }: { call: CallSession }) {
               <UserRound aria-hidden="true" className="size-10 text-white" />
             )}
             <Typography className="text-white">
-              {remoteStatus ?? "Não foi possível iniciar a chamada."}
+              {remoteStatus ?? t("Não foi possível iniciar a chamada.")}
             </Typography>
             {call.isError && (
               <button
@@ -114,7 +119,7 @@ export function VideoSection({ call }: { call: CallSession }) {
                 onClick={() => void call.retryCall()}
                 type="button"
               >
-                Tentar novamente
+                {t("Tentar novamente")}
               </button>
             )}
           </div>
@@ -122,7 +127,7 @@ export function VideoSection({ call }: { call: CallSession }) {
 
         <Row className="bg-primary-purple absolute top-0 right-0 z-10 min-w-[30%] rounded-tr-xl rounded-bl-xl px-3 py-3">
           <Typography className="text-white">
-            {remoteParticipant?.name ?? "Outro participante"}
+            {remoteParticipant?.name ?? t("Outro participante")}
           </Typography>
         </Row>
 
@@ -130,7 +135,7 @@ export function VideoSection({ call }: { call: CallSession }) {
           mirrored
           muted
           className="absolute right-4 bottom-4 z-10 h-[25%] w-[25%] rounded-xl"
-          label="Seu vídeo"
+          label={t("Seu vídeo")}
           stream={call.localStream}
         />
       </Row>

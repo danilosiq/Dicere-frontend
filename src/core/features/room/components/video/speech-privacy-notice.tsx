@@ -1,20 +1,24 @@
+"use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Button } from "@/core/components/button";
 import { Typography } from "@/core/components/typography";
 
 export function SpeechPrivacyNotice({ onAccept }: { onAccept: () => void }) {
+  const { t } = useSiteLanguage();
   return (
     <section
-      aria-label="Privacidade da transcrição"
+      aria-label={t("Privacidade da transcrição")}
       className="absolute inset-x-4 bottom-4 z-20 flex max-w-lg flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm dark:bg-gray-800"
     >
-      <Typography fontWeight="semibold">Transcrição de voz</Typography>
+      <Typography fontWeight="semibold">{t("Transcrição de voz")}</Typography>
       <Typography size="sm">
-        Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição,
-        sem salvar gravações. O texto continua sendo enviado à DeepL para
-        tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e
-        pausa quando esta aba fica oculta.
+        {t(
+          "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e pausa quando esta aba fica oculta.",
+        )}
       </Typography>
-      <Button label="Ativar transcrição nesta sala" onClick={onAccept} />
+      <Button label={t("Ativar transcrição nesta sala")} onClick={onAccept} />
     </section>
   );
 }

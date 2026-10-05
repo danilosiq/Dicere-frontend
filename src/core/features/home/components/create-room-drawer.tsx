@@ -1,3 +1,7 @@
+"use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Drawer } from "@/core/components/drawer";
 import { Column } from "@/core/components/layout";
 import { CreateRoomForm } from "@/core/forms";
@@ -19,9 +23,10 @@ export function CreateRoomDrawer({
   onSubmit,
   errorMessage,
 }: CreateRoomDrawerProps) {
+  const { t, feedback } = useSiteLanguage();
   return (
     <Drawer
-      title="Criar uma sala"
+      title={t("Criar uma sala")}
       open={isOpen}
       onClose={onClose}
       enableCloseButton
@@ -29,7 +34,7 @@ export function CreateRoomDrawer({
       <Column className="w-full items-center gap-10">
         <Image
           src={PlusImage}
-          alt="plus"
+          alt=""
           width={150}
           height={150}
           className="rotate-[-40deg]"
@@ -41,7 +46,7 @@ export function CreateRoomDrawer({
             role="alert"
           >
             <Typography color="error" darkColor="error" size="sm">
-              {errorMessage}
+              {feedback(errorMessage)}
             </Typography>
           </div>
         )}

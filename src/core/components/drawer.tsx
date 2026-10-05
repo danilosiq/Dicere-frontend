@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSyncExternalStore } from "react";
@@ -68,6 +70,7 @@ export function Drawer({
   direction = DrawerDirection.RIGHT,
   enableCloseButton = false,
 }: DrawerProps) {
+  const { t } = useSiteLanguage();
   const resolvedDirection = useIsMobile() ? DrawerDirection.BOTTOM : direction;
   const hasHeader = Boolean(title || enableCloseButton);
 
@@ -97,7 +100,7 @@ export function Drawer({
 
               {enableCloseButton ? (
                 <button
-                  aria-label="Fechar drawer"
+                  aria-label={t("Fechar drawer")}
                   className="hover:text-foreground focus-visible:ring-brand-green ml-auto flex size-9 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   onClick={onClose}
                   type="button"

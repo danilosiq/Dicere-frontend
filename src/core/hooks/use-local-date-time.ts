@@ -1,27 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { enUS, es, ptBR, zhCN } from "date-fns/locale";
+import { useSiteLanguage } from "@/core/i18n/provider";
+import type { SiteLocale } from "@/core/i18n/locales";
 
-const LOCALE = "pt-BR";
+const DATE_LOCALES = { "pt-BR": ptBR, en: enUS, es, "zh-CN": zhCN };
 const UPDATE_INTERVAL_MS = 60_000;
-
-const timeFormatter = new Intl.DateTimeFormat(LOCALE, {
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-const weekDayFormatter = new Intl.DateTimeFormat(LOCALE, {
-  weekday: "short",
-});
-
-const dayFormatter = new Intl.DateTimeFormat(LOCALE, {
-  day: "numeric",
-});
-
-const monthFormatter = new Intl.DateTimeFormat(LOCALE, {
-  month: "short",
-});
 
 export type LocalDateTime = {
   time: string;
@@ -39,42 +25,47 @@ const EMPTY_LOCAL_DATE_TIME: LocalDateTime = {
   formattedDateTime: "",
 };
 
-function removeAbbreviationPeriod(value: string) {
-  return value.replaceAll(".", "");
-}
-
-export function formatLocalDateTime(date: Date): LocalDateTime {
-  const time = timeFormatter.format(date);
-  const weekDay = removeAbbreviationPeriod(weekDayFormatter.format(date));
-  const day = dayFormatter.format(date);
-  const month = removeAbbreviationPeriod(monthFormatter.format(date));
-
+export function formatLocalDateTime(
+  date: Date,
+  siteLocale: SiteLocale = "pt-BR",
+): LocalDateTime {
+  const options = { locale: DATE_LOCALES[siteLocale] };
+  const time = format(date, "HH:mm", options);
+  const weekDay = format(
+    date,
+    siteLocale === "pt-BR" ? "EEEEEE" : "EEE",
+    options,
+  ).replaceAll(".", "");
+  const day = format(date, "d", options);
+  const month = format(date, "MMM", options).replaceAll(".", "");
+  const datePattern =
+    siteLocale === "pt-BR"
+      ? "d 'de' MMM"
+      : siteLocale === "zh-CN"
+        ? "M月d日"
+        : "d MMM";
   return {
     time,
     weekDay,
     day,
     month,
-    formattedDateTime: `${time} • ${weekDay} - ${day} de ${month}`,
+    formattedDateTime: `${time} • ${weekDay} - ${format(date, datePattern, options).replaceAll(".", "")}`,
   };
 }
 
 export function useLocalDateTime(): LocalDateTime {
-  const [localDateTime, setLocalDateTime] = useState(EMPTY_LOCAL_DATE_TIME);
-
+  const { locale } = useSiteLanguage();
+  const [date, setDate] = useState<Date | null>(null);
   useEffect(() => {
-    function updateLocalDateTime() {
-      setLocalDateTime(formatLocalDateTime(new Date()));
-    }
-
-    updateLocalDateTime();
-
-    const intervalId = window.setInterval(
-      updateLocalDateTime,
+    const frame = requestAnimationFrame(() => setDate(new Date()));
+    const interval = window.setInterval(
+      () => setDate(new Date()),
       UPDATE_INTERVAL_MS,
     );
-
-    return () => window.clearInterval(intervalId);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearInterval(interval);
+    };
   }, []);
-
-  return localDateTime;
+  return date ? formatLocalDateTime(date, locale) : EMPTY_LOCAL_DATE_TIME;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import chatBackgroundBlack from "@/core/assets/images/chat-background-black.png";
 import chatBackgroundWhite from "@/core/assets/images/chat-background-white.png";
 import { SelectorCountry } from "@/core/components";
@@ -28,6 +30,7 @@ type PrependScrollSnapshot = {
 };
 
 export function ChatSection() {
+  const { t, feedback } = useSiteLanguage();
   const room = useRoomSessionStore((state) => state.room);
   const participant = useRoomSessionStore((state) => state.participant);
   const resumeSession = useRoomSessionStore((state) => state.resumeSession);
@@ -57,7 +60,7 @@ export function ChatSection() {
     targetLanguage:
       participant?.targetLanguage ?? resumeSession?.targetLanguage,
   });
-  const roomTitle = room?.title ?? resumeSession?.roomTitle ?? "Sala";
+  const roomTitle = room?.title ?? resumeSession?.roomTitle ?? t("Sala");
   const showNewMessageIndicator =
     newMessageIndicator.roomId === room?.id && newMessageIndicator.visible;
 
@@ -205,7 +208,7 @@ export function ChatSection() {
 
         <div
           aria-busy={chat.isInitialLoading || chat.isLoadingOlder}
-          aria-label="Mensagens da sala"
+          aria-label={t("Mensagens da sala")}
           className="relative z-10 mt-6 flex min-h-0 flex-1 [scrollbar-width:none] flex-col gap-6 overflow-y-auto px-6 pb-4 [&::-webkit-scrollbar]:hidden"
           onScroll={handleMessagesScroll}
           ref={messagesViewportRef}
@@ -221,7 +224,7 @@ export function ChatSection() {
                 aria-hidden="true"
                 className="size-4 animate-spin"
               />
-              <Typography size="sm">Carregando anteriores...</Typography>
+              <Typography size="sm">{t("Carregando anteriores...")}</Typography>
             </div>
           )}
 
@@ -231,7 +234,7 @@ export function ChatSection() {
               onClick={() => void handleLoadOlder()}
               type="button"
             >
-              Carregar anteriores
+              {t("Carregar anteriores")}
             </button>
           )}
 
@@ -241,14 +244,14 @@ export function ChatSection() {
               role="alert"
             >
               <Typography color="error" darkColor="white" size="sm">
-                {chat.olderError}
+                {feedback(chat.olderError)}
               </Typography>
               <button
                 className="text-error focus-visible:ring-error shrink-0 rounded px-2 py-1 text-sm font-semibold outline-none hover:underline focus-visible:ring-2"
                 onClick={() => void handleRetryOlder()}
                 type="button"
               >
-                Tentar novamente
+                {t("Tentar novamente")}
               </button>
             </div>
           )}
@@ -263,7 +266,7 @@ export function ChatSection() {
                 aria-hidden="true"
                 className="size-5 animate-spin"
               />
-              <Typography>Carregando histórico...</Typography>
+              <Typography>{t("Carregando histórico...")}</Typography>
             </div>
           )}
 
@@ -273,14 +276,14 @@ export function ChatSection() {
               role="alert"
             >
               <Typography color="error" darkColor="white" size="sm">
-                {chat.initialError}
+                {feedback(chat.initialError)}
               </Typography>
               <button
                 className="text-error focus-visible:ring-error rounded px-2 py-1 text-sm font-semibold outline-none hover:underline focus-visible:ring-2"
                 onClick={() => void chat.retryHistory()}
                 type="button"
               >
-                Tentar novamente
+                {t("Tentar novamente")}
               </button>
             </div>
           )}
@@ -289,7 +292,7 @@ export function ChatSection() {
           !chat.initialError &&
           chat.messages.length === 0 ? (
             <Typography className="m-auto text-center text-gray-500 dark:text-gray-300">
-              Envie a primeira mensagem da sala.
+              {t("Envie a primeira mensagem da sala.")}
             </Typography>
           ) : (
             chat.messages.map((message) => {
@@ -329,7 +332,7 @@ export function ChatSection() {
             type="button"
           >
             <ArrowDown aria-hidden="true" className="size-4" />
-            Novas mensagens
+            {t("Novas mensagens")}
           </button>
         )}
 
@@ -339,7 +342,7 @@ export function ChatSection() {
         >
           <Column className="min-w-0 flex-1">
             <InputText
-              aria-label="Mensagem"
+              aria-label={t("Mensagem")}
               disabled={!room?.id || !participant?.id}
               error={chat.validationError ?? chat.sendError ?? undefined}
               onChange={(event) => chat.setDraft(event.target.value)}
@@ -353,7 +356,7 @@ export function ChatSection() {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="Escreva uma mensagem..."
+              placeholder={t("Escreva uma mensagem...")}
               ref={inputRef}
               value={chat.draft}
             />
@@ -377,19 +380,21 @@ export function ChatSection() {
                 darkColor="white"
                 size="sm"
               >
-                Chat desconectado. Aguarde a reconexão para enviar.
+                {t("Chat desconectado. Aguarde a reconexão para enviar.")}
               </Typography>
             )}
           </Column>
           <SelectorCountry
             hideLabelText
             value={chat.sourceLanguage}
-            placeholder="Idioma falado"
+            placeholder={t("Idioma falado")}
             onSelect={chat.setSourceLanguage}
           />
           <IconButton
             ariaBusy={chat.isSending}
-            ariaLabel={chat.isSending ? "Enviando mensagem" : "Enviar mensagem"}
+            ariaLabel={
+              chat.isSending ? t("Enviando mensagem") : t("Enviar mensagem")
+            }
             className="mt-0.5"
             disabled={!chat.canSend}
             icon={
@@ -403,7 +408,7 @@ export function ChatSection() {
           />
           {chat.isSending && (
             <span aria-live="polite" className="sr-only" role="status">
-              Enviando mensagem.
+              {t("Enviando mensagem.")}
             </span>
           )}
         </form>

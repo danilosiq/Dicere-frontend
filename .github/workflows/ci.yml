@@ -74,6 +74,13 @@ jobs:
       - name: Gerar build
         run: npm run build
 
+      - name: Verificar interface nos quatro idiomas, mobile e desktop
+        run: |
+          node node_modules/next/dist/bin/next start --port 3106 > "$RUNNER_TEMP/dicere-localization.log" 2>&1 &
+          site_server_pid=$!
+          trap 'kill "$site_server_pid" 2>/dev/null || true' EXIT
+          node test/speech-browser/site-localization.mjs
+
       - name: Validar scripts de deploy
         run: |
           bash -n scripts/deploy.sh scripts/deploy-remote.sh

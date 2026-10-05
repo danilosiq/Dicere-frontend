@@ -1,4 +1,7 @@
 "use client";
+
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { Button } from "@/core/components/button";
 import { Header } from "@/core/components/header";
 import { Column, Row } from "@/core/components/layout";
@@ -19,6 +22,7 @@ import { TutorialCarousel } from "./components/tutorial-carousel";
 import { isDeepLTargetLanguage } from "@/core/components/selector-country/countryList";
 
 export function HomeScreen() {
+  const { t } = useSiteLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const roomAccess = useRoomAccess();
@@ -84,21 +88,22 @@ export function HomeScreen() {
         <Column className="mt-15 gap-8 lg:ml-5 lg:max-w-160 lg:shrink-0">
           <Logo size="xl" />
           <Typography>
-            Entenda qualquer conversa, o idioma não precisa <br /> mais ser uma
-            barreira
+            {t(
+              "Entenda qualquer conversa, o idioma não precisa mais ser uma barreira",
+            )}
           </Typography>
           <Typography>
-            Conecte-se ou crie uma sala para acessar esta experiencia
+            {t("Conecte-se ou crie uma sala para acessar esta experiencia")}
           </Typography>
-          <Row className="gap-5">
+          <Row className="flex-wrap gap-3 sm:gap-5">
             <Button
               paddingY={8}
-              label="Criar uma sala"
+              label={t("Criar uma sala")}
               onClick={openCreateRoomDrawer}
               startIcon={<CirclePlus />}
             />
             <Button
-              label="Entrar na sala"
+              label={t("Entrar na sala")}
               variant="secondary"
               startIcon={<CornerDownRight />}
               onClick={openJoinRoomDrawer}
@@ -112,7 +117,7 @@ export function HomeScreen() {
       </Column>
 
       <Typography className="m-auto mt-70" fontFamily="baloo2">
-        Saiba mais sobre o{" "}
+        {t("Saiba mais sobre o")}{" "}
         <Typography
           fontFamily="baloo2"
           fontWeight="medium"

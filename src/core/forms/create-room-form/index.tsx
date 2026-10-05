@@ -1,5 +1,7 @@
 "use client";
 
+import { useSiteLanguage } from "@/core/i18n/provider";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 
@@ -16,6 +18,7 @@ export type CreateRoomFormProps = {
 };
 
 export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
+  const { t } = useSiteLanguage();
   const {
     register,
     control,
@@ -40,15 +43,15 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
     <form onSubmit={handleSubmit(handleCreateRoom)} className="w-full">
       <Column className="w-full gap-3">
         <InputText
-          label="Título da sala"
-          placeholder="Título da sala"
+          label={t("Título da sala")}
+          placeholder={t("Título da sala")}
           error={errors.title?.message}
           required
           {...register("title")}
         />
         <InputText
-          label="Seu nome"
-          placeholder="Seu nome"
+          label={t("Seu nome")}
+          placeholder={t("Seu nome")}
           error={errors.nickname?.message}
           required
           {...register("nickname")}
@@ -59,10 +62,10 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
-              label="Idioma que deseja receber as traduções"
+              label={t("Idioma que deseja receber as traduções")}
               error={errors.targetLanguage?.message}
               disabled={isSubmitting}
-              placeholder="Idioma das traduções recebidas"
+              placeholder={t("Idioma das traduções recebidas")}
               onSelect={field.onChange}
             />
           )}
@@ -73,8 +76,8 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           render={({ field }) => (
             <SelectorCountry
               value={field.value}
-              label="Idioma que você irá falar na chamada"
-              placeholder="Selecione seu idioma falado"
+              label={t("Idioma que você irá falar na chamada")}
+              placeholder={t("Selecione seu idioma falado")}
               error={errors.spokenLanguage?.message}
               disabled={isSubmitting}
               onSelect={field.onChange}
@@ -82,8 +85,8 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
           )}
         />
         <InputText
-          label="Senha"
-          placeholder="Senha"
+          label={t("Senha")}
+          placeholder={t("Senha")}
           type="password"
           autoComplete="new-password"
           error={errors.password?.message}
@@ -93,7 +96,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
 
         <Row className="mt-5 justify-end gap-3">
           <Button
-            label="Cancelar"
+            label={t("Cancelar")}
             variant="ghost"
             rounded="sm"
             type="button"
@@ -101,7 +104,7 @@ export function CreateRoomForm({ onCancel, onSubmit }: CreateRoomFormProps) {
             onClick={onCancel}
           />
           <Button
-            label="Confirmar"
+            label={t("Confirmar")}
             rounded="sm"
             type="submit"
             loading={isSubmitting}

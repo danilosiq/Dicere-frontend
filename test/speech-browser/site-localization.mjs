@@ -168,6 +168,8 @@ try {
             exact: true,
           })
           .click();
+        await page.waitForURL(new URL("/", frontend).href);
+        await create.waitFor();
         await page
           .getByRole("button", { name: scenario.site, exact: true })
           .click();

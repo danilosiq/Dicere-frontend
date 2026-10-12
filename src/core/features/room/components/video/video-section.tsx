@@ -22,6 +22,7 @@ import { useTranslationLanguage } from "@/core/hooks/use-translation-language";
 export function VideoSection({ call }: { call: CallSession }) {
   const { t, feedback } = useSiteLanguage();
   const room = useRoomSessionStore((state) => state.room);
+  const reconnectingRoom = useRoomSessionStore((state) => state.isReconnecting);
   const participant = useRoomSessionStore((state) => state.participant);
   const [acceptedSpeechRoom, setAcceptedSpeechRoom] = useState<string>();
   const speechLanguage = useRoomSessionStore((state) => state.spokenLanguage);
@@ -39,6 +40,7 @@ export function VideoSection({ call }: { call: CallSession }) {
     language: speechLanguage,
     enabled:
       Boolean(room?.id) &&
+      !reconnectingRoom &&
       call.microphoneEnabled &&
       !call.isLeaving &&
       !needsSpeechConsent &&
@@ -52,15 +54,17 @@ export function VideoSection({ call }: { call: CallSession }) {
       ?.getVideoTracks()
       .some((track) => track.readyState === "live") ?? false;
 
-  const remoteStatus = call.isError
-    ? call.errorMessage
-      ? feedback(call.errorMessage)
-      : undefined
-    : call.isStarting
-      ? t("Preparando sua câmera e seu microfone...")
-      : call.isWaitingForParticipant
-        ? t("Aguardando o outro participante...")
-        : t("Conectando o vídeo do outro participante...");
+  const remoteStatus = reconnectingRoom
+    ? t("Reconectando a sala automaticamente…")
+    : call.isError
+      ? call.errorMessage
+        ? feedback(call.errorMessage)
+        : undefined
+      : call.isStarting
+        ? t("Preparando sua câmera e seu microfone...")
+        : call.isWaitingForParticipant
+          ? t("Aguardando o outro participante...")
+          : t("Conectando o vídeo do outro participante...");
 
   return (
     <Row className="relative min-h-0 flex-1 bg-gray-100 p-4 dark:bg-black">
@@ -100,7 +104,7 @@ export function VideoSection({ call }: { call: CallSession }) {
             aria-live="polite"
             className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-300 px-6 text-center dark:bg-gray-900"
           >
-            {call.isError ? (
+            {call.isError && !reconnectingRoom ? (
               <VideoOff aria-hidden="true" className="size-10 text-white" />
             ) : call.isStarting || !call.isWaitingForParticipant ? (
               <LoaderCircle
@@ -113,7 +117,7 @@ export function VideoSection({ call }: { call: CallSession }) {
             <Typography className="text-white">
               {remoteStatus ?? t("Não foi possível iniciar a chamada.")}
             </Typography>
-            {call.isError && (
+            {call.isError && !reconnectingRoom && (
               <button
                 className="bg-primary-purple hover:bg-primary-purple/90 rounded-full px-4 py-2 text-sm font-medium text-white"
                 onClick={() => void call.retryCall()}

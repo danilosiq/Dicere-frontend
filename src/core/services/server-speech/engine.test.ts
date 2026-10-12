@@ -51,6 +51,15 @@ function setup(locale = "pt-BR") {
   return { ...options, engine: new ServerSpeechEngine(options) };
 }
 describe("ServerSpeechEngine", () => {
+  it("does not cancel recognition just because the tab becomes hidden", async () => {
+    const { engine, onError } = setup();
+    await engine.start();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(onError).not.toHaveBeenCalled();
+    expect(mocks.micStop).not.toHaveBeenCalled();
+    engine.stop();
+  });
   it.each(["en-US", "en-GB", "es-ES"])(
     "keeps %s listening for 31 seconds with six-second windows",
     async (locale) => {

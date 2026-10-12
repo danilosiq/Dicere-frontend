@@ -9,6 +9,7 @@ import type {
 import type { SocketEventErrorPayload } from "@/core/@types/socket-events";
 import { api } from "@/core/services/api-service";
 import { disconnectSocket, getSocket } from "@/core/services/socket-service";
+import { rememberRoomCredentials } from "./room-reconnect-credentials";
 
 const JOIN_ROOM_TIMEOUT_MS = 10_000;
 const RECONNECT_RETRY_DELAY_MS = 250;
@@ -89,11 +90,26 @@ export async function createRoom(input: CreateRoomInput) {
   }
 }
 
-function wait(delay: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+function wait(delay: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(signal?.reason);
+    };
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, delay);
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+  });
 }
 
-export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
+export function joinRoom(
+  payload: JoinRoomPayload,
+  signal?: AbortSignal,
+): Promise<RoomJoinedPayload> {
   const socket = getSocket();
 
   return new Promise((resolve, reject) => {
@@ -106,6 +122,7 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
       socket.off("connect_error", handleConnectError);
       socket.off("connect", emitJoinRoom);
       window.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", handleAbort);
     };
 
     const settle = (callback: () => void) => {
@@ -116,7 +133,10 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
     };
 
     const handleJoined = (confirmation: RoomJoinedPayload) => {
-      settle(() => resolve(confirmation));
+      settle(() => {
+        rememberRoomCredentials(payload, confirmation);
+        resolve(confirmation);
+      });
     };
 
     const handleError = (error: SocketEventErrorPayload) => {
@@ -159,6 +179,16 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
     };
 
     const emitJoinRoom = () => socket.emit("join_room", payload);
+    const handleAbort = () =>
+      settle(() => {
+        disconnectSocket();
+        reject(
+          new RoomAccessError({
+            code: "ROOM_JOIN_CANCELLED",
+            message: "Entrada cancelada.",
+          }),
+        );
+      });
     const timeoutId = window.setTimeout(() => {
       settle(() => {
         // The server may still be admitting this socket; disconnect rolls it back.
@@ -177,6 +207,11 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
     socket.on("error", handleError);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
 
     if (socket.connected) {
       emitJoinRoom();
@@ -188,10 +223,14 @@ export function joinRoom(payload: JoinRoomPayload): Promise<RoomJoinedPayload> {
   });
 }
 
-export async function joinRoomWithReconnectRetry(payload: JoinRoomPayload) {
+export async function joinRoomWithReconnectRetry(
+  payload: JoinRoomPayload,
+  signal?: AbortSignal,
+) {
   for (let attempt = 0; attempt < RECONNECT_RETRY_ATTEMPTS; attempt += 1) {
     try {
-      return await joinRoom(payload);
+      signal?.throwIfAborted();
+      return await joinRoom(payload, signal);
     } catch (cause) {
       const shouldRetry =
         cause instanceof RoomAccessError &&
@@ -199,7 +238,7 @@ export async function joinRoomWithReconnectRetry(payload: JoinRoomPayload) {
         attempt < RECONNECT_RETRY_ATTEMPTS - 1;
 
       if (!shouldRetry) throw cause;
-      await wait(RECONNECT_RETRY_DELAY_MS);
+      await wait(RECONNECT_RETRY_DELAY_MS, signal);
     }
   }
 

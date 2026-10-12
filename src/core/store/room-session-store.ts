@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { updateRoomReconnectLanguage } from "@/core/services/room-reconnect-credentials";
 import type { DeepLTargetLanguage } from "@/core/components";
 import { isDeepLTargetLanguage } from "@/core/components/selector-country/countryList";
 
@@ -29,6 +30,8 @@ type RoomSessionStore = {
   participant: RoomParticipant | null;
   resumeSession: ResumeRoomSession | null;
   isJoined: boolean;
+  isReconnecting: boolean;
+  setReconnecting: (value: boolean) => void;
   isHydrated: boolean;
   spokenLanguage: DeepLTargetLanguage;
   setSpokenLanguage: (language: DeepLTargetLanguage) => void;
@@ -48,15 +51,27 @@ type RoomSessionStore = {
 
 function readStoredSession(): ResumeRoomSession | null {
   if (typeof window === "undefined") return null;
-
-  const value = window.sessionStorage.getItem(ROOM_SESSION_STORAGE_KEY);
-  if (!value) return null;
-
   try {
+    const value = window.sessionStorage.getItem(ROOM_SESSION_STORAGE_KEY);
+    if (!value) return null;
     return JSON.parse(value) as ResumeRoomSession;
   } catch {
-    window.sessionStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
+    persistResumeSession(null);
     return null;
+  }
+}
+
+function persistResumeSession(session: ResumeRoomSession | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (session)
+      window.sessionStorage.setItem(
+        ROOM_SESSION_STORAGE_KEY,
+        JSON.stringify(session),
+      );
+    else window.sessionStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
+  } catch {
+    // Storage is optional: a privacy/quota restriction must not interrupt the call.
   }
 }
 
@@ -81,6 +96,8 @@ export const useRoomSessionStore = create<RoomSessionStore>((set) => ({
   participant: null,
   resumeSession: null,
   isJoined: false,
+  isReconnecting: false,
+  setReconnecting: (isReconnecting) => set({ isReconnecting }),
   isHydrated: false,
   spokenLanguage: "PT-BR",
   setTargetLanguage: (roomId, participantId, targetLanguage) =>
@@ -88,6 +105,7 @@ export const useRoomSessionStore = create<RoomSessionStore>((set) => ({
       if (state.room?.id !== roomId || state.participant?.id !== participantId)
         return state;
       const participant = { ...state.participant, targetLanguage };
+      updateRoomReconnectLanguage(roomId, participantId, targetLanguage);
       const room = {
         ...state.room,
         participants: state.room.participants.map((item) =>
@@ -97,11 +115,7 @@ export const useRoomSessionStore = create<RoomSessionStore>((set) => ({
       const resumeSession = state.resumeSession
         ? { ...state.resumeSession, targetLanguage }
         : null;
-      if (resumeSession)
-        window.sessionStorage.setItem(
-          ROOM_SESSION_STORAGE_KEY,
-          JSON.stringify(resumeSession),
-        );
+      if (resumeSession) persistResumeSession(resumeSession);
       return { participant, room, resumeSession };
     }),
   hydrate: () =>
@@ -121,11 +135,7 @@ export const useRoomSessionStore = create<RoomSessionStore>((set) => ({
       const resumeSession = state.resumeSession
         ? { ...state.resumeSession, spokenLanguage }
         : null;
-      if (resumeSession)
-        window.sessionStorage.setItem(
-          ROOM_SESSION_STORAGE_KEY,
-          JSON.stringify(resumeSession),
-        );
+      if (resumeSession) persistResumeSession(resumeSession);
       return { spokenLanguage, resumeSession };
     }),
   setJoinedSession: (payload, selectedLanguage) =>
@@ -136,30 +146,32 @@ export const useRoomSessionStore = create<RoomSessionStore>((set) => ({
       const spokenLanguage =
         selectedLanguage ?? (sameIdentity ? state.spokenLanguage : "PT-BR");
       const resumeSession = { ...createResumeSession(payload), spokenLanguage };
-      window.sessionStorage.setItem(
-        ROOM_SESSION_STORAGE_KEY,
-        JSON.stringify(resumeSession),
-      );
+      persistResumeSession(resumeSession);
       return {
         room: payload.room,
         participant: payload.participant,
         resumeSession,
         isJoined: true,
+        isReconnecting: false,
         isHydrated: true,
         spokenLanguage,
       };
     }),
   clearActiveSession: () =>
-    set({ room: null, participant: null, isJoined: false }),
+    set({
+      room: null,
+      participant: null,
+      isJoined: false,
+      isReconnecting: false,
+    }),
   clearSession: () => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
-    }
+    persistResumeSession(null);
     set({
       room: null,
       participant: null,
       resumeSession: null,
       isJoined: false,
+      isReconnecting: false,
       isHydrated: true,
       spokenLanguage: "PT-BR",
     });

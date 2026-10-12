@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useRoomSessionStore } from "@/core/store/room-session-store";
 
@@ -20,6 +20,28 @@ const joinedRoom = {
 };
 
 describe("room session store", () => {
+  afterEach(() => vi.restoreAllMocks());
+  it("keeps admission, language updates and exit working when storage is blocked", () => {
+    for (const method of ["getItem", "setItem", "removeItem"] as const)
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+        throw new DOMException("Blocked", "SecurityError");
+      });
+    const state = useRoomSessionStore.getState();
+    state.hydrate();
+    state.setJoinedSession(joinedRoom, "ES");
+    state.setReconnecting(true);
+    state.setJoinedSession(joinedRoom);
+    state.setSpokenLanguage("EN");
+    state.setTargetLanguage("room-id", "participant-id", "ZH");
+    expect(useRoomSessionStore.getState()).toMatchObject({
+      isJoined: true,
+      isReconnecting: false,
+      spokenLanguage: "EN",
+      participant: { targetLanguage: "ZH" },
+    });
+    state.clearSession();
+    expect(useRoomSessionStore.getState().isJoined).toBe(false);
+  });
   it("shares and persists spoken language independently from translation target", () => {
     const state = useRoomSessionStore.getState();
     state.setJoinedSession(

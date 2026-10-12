@@ -15,7 +15,7 @@ export function SpeechPrivacyNotice({ onAccept }: { onAccept: () => void }) {
       <Typography fontWeight="semibold">{t("Transcrição de voz")}</Typography>
       <Typography size="sm">
         {t(
-          "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e pausa quando esta aba fica oculta.",
+          "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês. Enquanto o microfone estiver ligado, continua em segundo plano quando o navegador permitir.",
         )}
       </Typography>
       <Button label={t("Ativar transcrição nesta sala")} onClick={onAccept} />

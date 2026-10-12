@@ -35,7 +35,8 @@ export function useRoomAccess() {
   );
   const createRoomMutation = useMutation({ mutationFn: createRoom });
   const joinRoomMutation = useMutation({
-    mutationFn: joinRoomWithReconnectRetry,
+    mutationFn: (payload: JoinRoomPayload) =>
+      joinRoomWithReconnectRetry(payload),
   });
   const pendingCreatedRoomRef = useRef<PendingCreatedRoom | null>(null);
   const [error, setError] = useState<RoomAccessError | null>(null);

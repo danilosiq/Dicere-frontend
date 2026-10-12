@@ -1,6 +1,9 @@
 import type { InterfaceMessages } from "../types";
 
 export const zhInterface = {
+  "Sem conexão. A transcrição será retomada automaticamente quando a sala reconectar.":
+    "连接已断开。房间重新连接后，语音转写将自动恢复。",
+  "Reconectando a sala automaticamente…": "正在自动重新连接房间…",
   "Página não encontrada": "页面未找到",
   "Esta página não existe ou não está mais disponível.":
     "此页面不存在或已不可用。",
@@ -109,13 +112,13 @@ export const zhInterface = {
   "Nova legenda traduzida": "新翻译字幕",
   "Privacidade da transcrição": "语音转写隐私",
   "Transcrição de voz": "语音转写",
-  "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e pausa quando esta aba fica oculta.":
-    "启用后，你的语音将发送到 Dicere 服务器进行转写，不保存录音。文本仍会发送到 DeepL 进行翻译。支持葡萄牙语、英语、西班牙语和中文；此标签页隐藏时，转写会暂停。",
+  "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês. Enquanto o microfone estiver ligado, continua em segundo plano quando o navegador permitir.":
+    "启用后，你的语音将发送到 Dicere 服务器进行转写，不保存录音。文本仍会发送到 DeepL 进行翻译。支持葡萄牙语、英语、西班牙语和中文。麦克风开启时，在浏览器允许的情况下，转写会继续在后台运行。",
   "Ativar transcrição nesta sala": "启用此房间的语音转写",
   "O idioma de voz {language} não é reconhecido. Selecione um idioma disponível em “Idioma falado”.":
     "无法识别语音语言 {language}。请在“使用的语言”中选择可用语言。",
   "A mensagem deve ter no máximo {count} caracteres.":
     "消息最多包含 {count} 个字符。",
-  "Reconectando a transcrição… Tentativa {attempt}/3. O trecho interrompido não será reenviado.":
-    "正在重新连接语音转写… 第 {attempt}/3 次尝试。中断的片段不会重新发送。",
+  "Reconectando a transcrição… Tentativa {attempt}. O trecho interrompido não será reenviado.":
+    "正在重新连接语音转写… 第 {attempt} 次尝试。中断的片段不会重新发送。",
 } satisfies InterfaceMessages;

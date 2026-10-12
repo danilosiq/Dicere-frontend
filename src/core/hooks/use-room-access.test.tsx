@@ -98,15 +98,12 @@ describe("useRoomAccess", () => {
     expect(createRoom).toHaveBeenCalledTimes(1);
     expect(useRoomSessionStore.getState().spokenLanguage).toBe("ES");
     expect(joinRoomWithReconnectRetry).toHaveBeenCalledTimes(2);
-    expect(joinRoomWithReconnectRetry).toHaveBeenLastCalledWith(
-      {
-        roomCode: "ABC-234-K9X",
-        password: "secret",
-        nickname: "Danilo",
-        targetLanguage: "PT-BR",
-        participantId: "admin-id",
-      },
-      expect.anything(),
-    );
+    expect(joinRoomWithReconnectRetry).toHaveBeenLastCalledWith({
+      roomCode: "ABC-234-K9X",
+      password: "secret",
+      nickname: "Danilo",
+      targetLanguage: "PT-BR",
+      participantId: "admin-id",
+    });
   });
 });

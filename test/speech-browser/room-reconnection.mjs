@@ -15,6 +15,7 @@ const sockets = [];
 let room;
 let browser;
 let owned;
+let phase = "create-room";
 const checks = [];
 async function count(expected) {
   const deadline = Date.now() + 5000;
@@ -136,6 +137,7 @@ try {
   });
   assert.equal(response.ok, true);
   room = (await response.json()).data;
+  phase = "admin-admission";
   const admin = await connect();
   await enter(admin, "Reconnect Admin", room.adminParticipantId);
   owned = await chromium.launchServer({
@@ -147,9 +149,12 @@ try {
   });
   browser = await chromium.connect(owned.wsEndpoint());
   const context = await browser.newContext({
+    locale: "pt-BR",
     permissions: ["camera", "microphone"],
   });
   await context.addInitScript((allowed) => {
+    window.dicereRoomAdmissions = 0;
+    window.dicereCallAdmissions = 0;
     // Reproduce room admission followed by media failure (call never started).
     if (!allowed)
       navigator.mediaDevices.getUserMedia = async () => {
@@ -164,13 +169,18 @@ try {
         this.addEventListener("message", ({ data }) => {
           if (typeof data === "string" && data.startsWith("42")) {
             const [event] = JSON.parse(data.slice(2));
-            if (event === "call-joined") window.dicereCallJoined = true;
+            if (event === "room_joined") window.dicereRoomAdmissions++;
+            if (event === "call-joined") {
+              window.dicereCallJoined = true;
+              window.dicereCallAdmissions++;
+            }
           }
         });
       }
     };
   }, mediaAllowed);
   const page = await context.newPage();
+  phase = "initial-ui-admission";
   page.setDefaultTimeout(15000);
   if (process.env.UI_TEST_TRACE) {
     page.on("pageerror", (error) =>
@@ -222,13 +232,48 @@ try {
     await count(2);
   }
   checks.push("three-refreshes-same-identity-no-duplicate");
+  phase = "transport-recovery";
+  const admissions = await page.evaluate(() => ({
+    room: window.dicereRoomAdmissions,
+    call: window.dicereCallAdmissions,
+  }));
   await page.evaluate(() => window.dicereRoomSocket.close());
-  await page.waitForURL("**/?roomCode=*");
-  await count(1);
-  await joinUI(page);
+  await page.waitForFunction(
+    (previous) => window.dicereRoomAdmissions > previous,
+    admissions.room,
+  );
+  if (mediaAllowed)
+    await page.waitForFunction(
+      (previous) => window.dicereCallAdmissions > previous,
+      admissions.call,
+    );
+  assert.equal(new URL(page.url()).pathname, `/room/${room.code}`);
   assert.equal((await stored(page)).participantId, resumedId);
   await count(2);
-  checks.push("transport-loss-and-resume");
+  checks.push("transport-loss-automatic-room-and-call-recovery");
+  phase = "offline-online-recovery";
+  const beforeOffline = await page.evaluate(() => ({
+    room: window.dicereRoomAdmissions,
+    call: window.dicereCallAdmissions,
+  }));
+  await context.setOffline(true);
+  await page
+    .getByText("Reconectando a sala automaticamente…", { exact: true })
+    .waitFor();
+  await count(1);
+  await context.setOffline(false);
+  await page.waitForFunction(
+    (previous) => window.dicereRoomAdmissions > previous,
+    beforeOffline.room,
+  );
+  if (mediaAllowed)
+    await page.waitForFunction(
+      (previous) => window.dicereCallAdmissions > previous,
+      beforeOffline.call,
+    );
+  assert.equal((await stored(page)).participantId, resumedId);
+  await count(2);
+  checks.push("browser-offline-online-automatic-readmission");
   await page.goBack();
   await page.waitForURL((url) => url.pathname === "/");
   await count(1);
@@ -251,17 +296,31 @@ try {
       checks,
     }),
   );
+} catch (error) {
+  console.error("ROOM_SMOKE_FAILED", {
+    phase,
+    roomId: room?.roomId,
+    checks,
+    name: error.name,
+    message: error.message.replaceAll(password, "[redacted]"),
+  });
+  throw error;
 } finally {
   sockets.forEach((socket) => socket.disconnect());
   const result = await cleanup({
-    closeRoom: async () =>
-      !room?.roomId ||
-      (
-        await fetch(`${api}/room/${room.roomId}`, {
-          method: "PATCH",
-          signal: AbortSignal.timeout(5000),
-        })
-      ).ok,
+    closeRoom: async () => {
+      if (!room?.roomId) return true;
+      const response = await fetch(`${api}/room/${room.roomId}`, {
+        method: "PATCH",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok)
+        console.error("ROOM_CLEANUP_FAILED", {
+          roomId: room.roomId,
+          status: response.status,
+        });
+      return response.ok;
+    },
     closeBrowser: () => closeBrowser(browser),
   });
   const stopped = await stopOwnedBrowser(owned);

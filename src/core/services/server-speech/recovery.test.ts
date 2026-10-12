@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerSpeechOptions } from "./engine";
 
 const mocks = vi.hoisted(() => ({
+  socket: { connected: true, on: vi.fn(), off: vi.fn() },
   sessions: [] as {
     options: ServerSpeechOptions;
     stop: ReturnType<typeof vi.fn>;
   }[],
 }));
+vi.mock("../socket-service", () => ({ getSocket: () => mocks.socket }));
 vi.mock("./engine", () => ({
   ServerSpeechEngine: class {
     stop = vi.fn();
@@ -23,6 +25,9 @@ import { RecoveringSpeechEngine } from "./recovery";
 beforeEach(() => {
   vi.useFakeTimers();
   mocks.sessions = [];
+  mocks.socket.connected = true;
+  mocks.socket.on.mockClear();
+  vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -43,6 +48,29 @@ function setup() {
 }
 
 describe("RecoveringSpeechEngine", () => {
+  it("does not restart on a connected transport before room readmission", () => {
+    let admitted = true;
+    const engine = new RecoveringSpeechEngine({
+      roomId: "one",
+      locale: "pt-BR",
+      onStage: vi.fn(),
+      onError: vi.fn(),
+      canStart: () => admitted,
+    });
+    engine.start();
+    admitted = false;
+    mocks.sessions[0].options.onError("STT_DISCONNECTED");
+    vi.advanceTimersByTime(500);
+    const joined = mocks.socket.on.mock.calls.find(
+      ([event]) => event === "room_joined",
+    )![1];
+    joined();
+    expect(mocks.sessions).toHaveLength(1);
+    admitted = true;
+    joined();
+    expect(mocks.sessions).toHaveLength(2);
+    engine.stop();
+  });
   it("recreates a fresh engine after a bounded delay without replaying audio", () => {
     const { engine, onError } = setup();
     const old = mocks.sessions[0];
@@ -57,18 +85,16 @@ describe("RecoveringSpeechEngine", () => {
     engine.stop();
   });
 
-  it("limits recovery to three attempts even if readiness briefly succeeds", () => {
+  it("keeps recovering with capped backoff after more than three failures", () => {
     const { engine, onError } = setup();
-    for (const delay of [500, 1000, 2000]) {
+    for (const delay of [500, 1000, 2000, 4000, 8000, 16000, 30000]) {
       const current = mocks.sessions.at(-1)!;
       current.options.onStage("listening");
       current.options.onError("STT_UNAVAILABLE");
       vi.advanceTimersByTime(delay);
     }
-    mocks.sessions.at(-1)!.options.onError("STT_UNAVAILABLE");
-    vi.advanceTimersByTime(60000);
-    expect(mocks.sessions).toHaveLength(4);
-    expect(onError).toHaveBeenLastCalledWith("STT_UNAVAILABLE", false, 3);
+    expect(mocks.sessions).toHaveLength(8);
+    expect(onError).toHaveBeenLastCalledWith("STT_UNAVAILABLE", true, 7);
     engine.stop();
   });
 
@@ -103,15 +129,40 @@ describe("RecoveringSpeechEngine", () => {
     expect(mocks.sessions).toHaveLength(1);
   });
 
-  it.each(["hidden", "pagehide"])("cancels pending recovery on %s", (event) => {
+  it("cancels pending recovery on pagehide", () => {
     const { engine } = setup();
     mocks.sessions[0].options.onError("STT_BUSY");
-    if (event === "hidden") {
-      vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-      document.dispatchEvent(new Event("visibilitychange"));
-    } else window.dispatchEvent(new Event("pagehide"));
+    window.dispatchEvent(new Event("pagehide"));
     vi.advanceTimersByTime(60000);
     expect(mocks.sessions).toHaveLength(1);
+    engine.stop();
+  });
+
+  it("keeps listening and retries in a hidden tab", () => {
+    const { engine, onError } = setup();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(onError).not.toHaveBeenCalled();
+    expect(mocks.sessions[0].stop).not.toHaveBeenCalled();
+    mocks.sessions[0].options.onError("STT_BACKPRESSURE");
+    vi.advanceTimersByTime(500);
+    expect(mocks.sessions).toHaveLength(2);
+    engine.stop();
+  });
+
+  it("waits offline and resumes only after the room is admitted again", () => {
+    const { engine } = setup();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    window.dispatchEvent(new Event("offline"));
+    vi.advanceTimersByTime(60000);
+    expect(mocks.sessions).toHaveLength(1);
+    mocks.socket.connected = false;
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+    expect(mocks.sessions).toHaveLength(1);
+    mocks.socket.connected = true;
+    mocks.socket.on.mock.calls.find(([event]) => event === "room_joined")![1]();
+    expect(mocks.sessions).toHaveLength(2);
     engine.stop();
   });
 

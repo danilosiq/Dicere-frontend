@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoomJoinedPayload } from "@/core/@types/room";
 import type { DicereSocket } from "@/core/services/socket-service";
 import { disconnectSocket, getSocket } from "@/core/services/socket-service";
-import { joinRoom } from "@/core/services/room-service";
+import {
+  joinRoom,
+  joinRoomWithReconnectRetry,
+} from "@/core/services/room-service";
 
 vi.mock("@/core/services/socket-service", () => ({
   getSocket: vi.fn(),
@@ -123,6 +126,43 @@ describe("room service", () => {
     expect(disconnectSocket).toHaveBeenCalledOnce();
     expect(fake.listenerCount("room_joined")).toBe(0);
     fake.serverEmit("room_joined", confirmation);
+    vi.useRealTimers();
+  });
+
+  it("cancels pending admission, disconnects and removes temporary listeners", async () => {
+    const fake = makeSocket();
+    vi.mocked(getSocket).mockReturnValue(fake.socket);
+    vi.mocked(disconnectSocket).mockClear();
+    const abort = new AbortController();
+    const request = joinRoom(payload, abort.signal);
+    const rejected = expect(request).rejects.toMatchObject({
+      code: "ROOM_JOIN_CANCELLED",
+    });
+    abort.abort();
+    await rejected;
+    expect(disconnectSocket).toHaveBeenCalledOnce();
+    expect(fake.listenerCount("room_joined")).toBe(0);
+    expect(fake.listenerCount("connect")).toBe(0);
+    fake.serverEmit("room_joined", confirmation);
+  });
+
+  it("does not retry admission after leaving during the identity-release wait", async () => {
+    vi.useFakeTimers();
+    const fake = makeSocket();
+    vi.mocked(getSocket).mockReturnValue(fake.socket);
+    const abort = new AbortController();
+    const request = joinRoomWithReconnectRetry(payload, abort.signal);
+    const rejected = expect(request).rejects.toBeDefined();
+    fake.serverEmit("error", {
+      event: "join_room",
+      code: "PARTICIPANT_ALREADY_CONNECTED",
+      message: "Connected",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort();
+    await rejected;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fake.socket.emit).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
 });

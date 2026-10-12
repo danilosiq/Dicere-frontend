@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RecoveringSpeechEngine } from "@/core/services/server-speech/recovery";
 import type { LocalCaptionIssue } from "./use-local-speech";
+import { useRoomSessionStore } from "@/core/store/room-session-store";
 
 function messageFor(code: string) {
   if (code === "STT_TRANSLATION_QUOTA_EXCEEDED")
@@ -35,6 +36,7 @@ export function useServerSpeech({
     const engine = new RecoveringSpeechEngine({
       roomId,
       locale,
+      canStart: () => !useRoomSessionStore.getState().isReconnecting,
       onStage: (stage) => {
         if (active)
           setIssue(
@@ -55,14 +57,17 @@ export function useServerSpeech({
         setIssue({
           status: recovering ? "retry_wait" : "blocked",
           message: recovering
-            ? `Reconectando a transcrição… Tentativa ${recoveryAttempt}/3. O trecho interrompido não será reenviado.`
+            ? code === "STT_DISCONNECTED"
+              ? "Sem conexão. A transcrição será retomada automaticamente quando a sala reconectar."
+              : `Reconectando a transcrição… Tentativa ${recoveryAttempt}. O trecho interrompido não será reenviado.`
             : messageFor(code),
           retryable:
             !recovering &&
             code !== "STT_LANGUAGE_UNSUPPORTED" &&
             code !== "STT_TRANSLATION_QUOTA_EXCEEDED",
         });
-        console.error("[Dicere][ServerSpeech]", {
+        const log = recovering ? console.warn : console.error;
+        log("[Dicere][ServerSpeech]", {
           code,
           locale,
           retryAttempt: attempt,

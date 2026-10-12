@@ -74,14 +74,14 @@ describe("continuous server speech", () => {
     },
   );
 
-  it("uses a short natural pause after eight seconds before reaching the hard boundary", () => {
+  it("uses a short natural pause after two seconds before reaching the hard boundary", () => {
     const audio = new Float32Array(26 * 16000);
-    audio.fill(0.1, 0, 9 * 16000);
-    audio.fill(0.2, 9 * 16000 + 4800, 25 * 16000);
+    audio.fill(0.1, 0, 3 * 16000);
+    audio.fill(0.2, 3 * 16000 + 4800, 25 * 16000);
     const segments = capture(audio);
     expect(segments.length).toBeGreaterThanOrEqual(3);
-    expect(segments[0].length).toBeGreaterThan(9 * 16000);
-    expect(segments[0].length).toBeLessThan(9 * 16000 + 4800);
+    expect(segments[0].length).toBeGreaterThan(3 * 16000);
+    expect(segments[0].length).toBeLessThan(3 * 16000 + 4800);
     expect(segments[0].slice(-3200).every((sample) => sample === 0)).toBe(true);
     expect(segments[1].some((sample) => sample > 0 && sample < 0.15)).toBe(
       false,
@@ -96,10 +96,10 @@ describe("continuous server speech", () => {
       expect(capture(audio, sizes).map(hash)).toEqual(expected);
   });
 
-  it("does not create a silence-only capture after an exact twelve-second boundary", () => {
+  it("does not create a silence-only capture after an exact six-second boundary", () => {
     const callbacks = { start: vi.fn(), chunk: vi.fn(), finish: vi.fn() };
     const segmenter = new StreamingSegmenter(callbacks);
-    for (let i = 0; i < 24; i++)
+    for (let i = 0; i < 12; i++)
       segmenter.push(new Float32Array(8000).fill(0.1));
     for (let i = 0; i < 8; i++) segmenter.push(new Float32Array(8000));
     expect(callbacks.finish).toHaveBeenCalledOnce();

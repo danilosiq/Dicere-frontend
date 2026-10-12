@@ -1,31 +1,34 @@
 import { ServerSpeechEngine, type ServerSpeechOptions } from "./engine";
+import { getSocket } from "../socket-service";
+import {
+  isRecoverableSpeechError,
+  speechRecoveryDelay,
+} from "./recovery-policy";
 
-const delays = [500, 1000, 2000];
-const transientErrors = new Set([
-  "STT_UNAVAILABLE",
-  "STT_BUSY",
-  "STT_TIMEOUT",
-  "STT_ACK_TIMEOUT",
-  "STT_DISCONNECTED",
-]);
 type Options = Omit<ServerSpeechOptions, "onError"> & {
+  canStart?: () => boolean;
   onError: (code: string, recovering: boolean, attempt: number) => void;
 };
 
-/** Restarts capture, never a failed utterance. Owns no audio or call media. */
+/** Restarts only fresh capture; never replays audio with an uncertain ACK. */
 export class RecoveringSpeechEngine {
   private engine?: ServerSpeechEngine;
   private stopped = false;
   private started = false;
+  private pending = false;
   private generation = 0;
   private attempt = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private stableTimer?: ReturnType<typeof setTimeout>;
   private readonly leaving = () => this.stop();
+  private readonly offline = () => this.failed("STT_DISCONNECTED");
   private readonly visibility = () => {
-    if (document.visibilityState !== "hidden" || this.stopped) return;
-    this.stop();
-    this.options.onError("STT_BACKGROUND_PAUSED", false, this.attempt);
+    if (document.visibilityState === "visible") this.wake();
+  };
+  private readonly wake = () => {
+    if (this.stopped || !this.pending || !this.available()) return;
+    clearTimeout(this.retryTimer);
+    this.begin();
   };
 
   constructor(private readonly options: Options) {}
@@ -34,9 +37,13 @@ export class RecoveringSpeechEngine {
     if (this.stopped || this.started) return;
     this.started = true;
     window.addEventListener("pagehide", this.leaving);
+    window.addEventListener("offline", this.offline);
+    window.addEventListener("online", this.wake);
     document.addEventListener("visibilitychange", this.visibility);
-    this.visibility();
-    if (!this.stopped) this.begin();
+    document.addEventListener("resume", this.wake);
+    // A connected socket is not yet an authorized room. Wake after admission.
+    getSocket().on("room_joined", this.wake);
+    this.begin();
   }
 
   stop() {
@@ -47,10 +54,29 @@ export class RecoveringSpeechEngine {
     clearTimeout(this.stableTimer);
     this.engine?.stop();
     window.removeEventListener("pagehide", this.leaving);
+    window.removeEventListener("offline", this.offline);
+    window.removeEventListener("online", this.wake);
     document.removeEventListener("visibilitychange", this.visibility);
+    document.removeEventListener("resume", this.wake);
+    getSocket().off("room_joined", this.wake);
+  }
+
+  private available() {
+    return (
+      navigator.onLine !== false &&
+      getSocket().connected !== false &&
+      this.options.canStart?.() !== false
+    );
   }
 
   private begin() {
+    if (this.stopped) return;
+    if (!this.available()) {
+      this.pending = true;
+      this.options.onError("STT_DISCONNECTED", true, this.attempt);
+      return;
+    }
+    this.pending = false;
     const generation = ++this.generation;
     const current = () => !this.stopped && generation === this.generation;
     this.engine = new ServerSpeechEngine({
@@ -66,22 +92,27 @@ export class RecoveringSpeechEngine {
         this.options.onStage(stage);
       },
       onError: (code) => {
-        if (!current()) return;
-        this.generation++;
-        clearTimeout(this.stableTimer);
-        this.engine?.stop();
-        const delay = transientErrors.has(code)
-          ? delays[this.attempt]
-          : undefined;
-        if (delay !== undefined) {
-          this.attempt++;
-          this.retryTimer = setTimeout(() => {
-            if (!this.stopped) this.begin();
-          }, delay);
-        }
-        this.options.onError(code, delay !== undefined, this.attempt);
+        if (current()) this.failed(code);
       },
     });
     void this.engine.start();
+  }
+
+  private failed(code: string) {
+    if (this.stopped) return;
+    this.generation++;
+    clearTimeout(this.stableTimer);
+    clearTimeout(this.retryTimer);
+    this.engine?.stop();
+    this.pending = isRecoverableSpeechError(code);
+    if (this.pending) {
+      this.attempt++;
+      if (navigator.onLine !== false)
+        this.retryTimer = setTimeout(
+          () => this.begin(),
+          speechRecoveryDelay(this.attempt),
+        );
+    }
+    this.options.onError(code, this.pending, this.attempt);
   }
 }

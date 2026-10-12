@@ -1,4 +1,6 @@
 export type InterfaceMessages = Record<
+  | "Sem conexão. A transcrição será retomada automaticamente quando a sala reconectar."
+  | "Reconectando a sala automaticamente…"
   | "Página não encontrada"
   | "Esta página não existe ou não está mais disponível."
   | "Voltar ao início"
@@ -102,11 +104,11 @@ export type InterfaceMessages = Record<
   | "Nova legenda traduzida"
   | "Privacidade da transcrição"
   | "Transcrição de voz"
-  | "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e pausa quando esta aba fica oculta."
+  | "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês. Enquanto o microfone estiver ligado, continua em segundo plano quando o navegador permitir."
   | "Ativar transcrição nesta sala"
   | "O idioma de voz {language} não é reconhecido. Selecione um idioma disponível em “Idioma falado”."
   | "A mensagem deve ter no máximo {count} caracteres."
-  | "Reconectando a transcrição… Tentativa {attempt}/3. O trecho interrompido não será reenviado.",
+  | "Reconectando a transcrição… Tentativa {attempt}. O trecho interrompido não será reenviado.",
   string
 >;
 

@@ -18,10 +18,6 @@ export class ServerSpeechEngine {
   private readonly client: StreamingSpeechClient;
   private readonly microphone: SpeechMicrophone;
   private readonly disconnect = () => this.fail("STT_DISCONNECTED");
-  private readonly visibility = () => {
-    if (document.visibilityState === "hidden")
-      this.fail("STT_BACKGROUND_PAUSED");
-  };
   private readonly leaving = () => this.stop();
 
   constructor(private readonly options: ServerSpeechOptions) {
@@ -56,9 +52,7 @@ export class ServerSpeechEngine {
       if (!isServerSpeechLocale(this.options.locale))
         throw new Error("STT_LANGUAGE_UNSUPPORTED");
       getSocket().on("disconnect", this.disconnect);
-      document.addEventListener("visibilitychange", this.visibility);
       window.addEventListener("pagehide", this.leaving);
-      this.visibility();
       if (this.stopped) return;
       this.options.onStage("preparing");
       await this.client.ready();
@@ -77,7 +71,6 @@ export class ServerSpeechEngine {
     this.client.stop();
     this.microphone.stop();
     getSocket().off("disconnect", this.disconnect);
-    document.removeEventListener("visibilitychange", this.visibility);
     window.removeEventListener("pagehide", this.leaving);
   }
 
@@ -85,9 +78,13 @@ export class ServerSpeechEngine {
     this.fail(
       error instanceof DOMException && error.name === "NotAllowedError"
         ? "STT_PERMISSION_DENIED"
-        : error instanceof Error && /^STT_[A-Z_]+$/.test(error.message)
-          ? error.message
-          : "STT_FAILED",
+        : error instanceof DOMException && error.name === "NotReadableError"
+          ? "STT_DEVICE_BUSY"
+          : error instanceof DOMException && error.name === "AbortError"
+            ? "STT_INTERRUPTED"
+            : error instanceof Error && /^STT_[A-Z_]+$/.test(error.message)
+              ? error.message
+              : "STT_FAILED",
     );
   }
   private fail(code: string) {

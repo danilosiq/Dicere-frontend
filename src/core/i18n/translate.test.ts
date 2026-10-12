@@ -56,9 +56,9 @@ describe("complete interface dictionaries", () => {
     expect(
       translateFeedback(
         "es",
-        "Reconectando a transcrição… Tentativa 2/3. O trecho interrompido não será reenviado.",
+        "Reconectando a transcrição… Tentativa 12. O trecho interrompido não será reenviado.",
       ),
-    ).toContain("Intento 2/3");
+    ).toContain("Intento 12");
     expect(
       translateFeedback(
         "zh-CN",

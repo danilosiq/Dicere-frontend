@@ -42,6 +42,7 @@ export class SpeechMicrophone {
     this.stream = stream;
     stream.getAudioTracks().forEach((track) => {
       track.onended = () => this.onError("STT_MICROPHONE_ENDED");
+      track.onmute = () => this.onError("STT_MICROPHONE_INTERRUPTED");
     });
     await this.context.audioWorklet.addModule("/audio/dicere-pcm-processor.js");
     if (this.stopped) return;
@@ -56,6 +57,10 @@ export class SpeechMicrophone {
       this.onError("STT_AUDIO_PROCESSOR_FAILED");
     this.source.connect(this.processor);
     this.processor.connect(this.context.destination);
+    this.context.onstatechange = () => {
+      if (!this.stopped && this.context?.state !== "running")
+        this.onError("STT_AUDIO_SUSPENDED");
+    };
     clearTimeout(this.timer);
   }
 
@@ -68,8 +73,10 @@ export class SpeechMicrophone {
     this.source?.disconnect();
     this.stream?.getTracks().forEach((track) => {
       track.onended = null;
+      track.onmute = null;
       track.stop();
     });
+    if (this.context) this.context.onstatechange = null;
     if (this.context && this.context.state !== "closed")
       void this.context.close().catch(() => undefined);
   }

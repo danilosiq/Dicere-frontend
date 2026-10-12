@@ -1,6 +1,10 @@
 import type { InterfaceMessages } from "../types";
 
 export const esInterface = {
+  "Sem conexão. A transcrição será retomada automaticamente quando a sala reconectar.":
+    "Sin conexión. La transcripción se reanudará automáticamente cuando la sala se reconecte.",
+  "Reconectando a sala automaticamente…":
+    "Reconectando la sala automáticamente…",
   "Página não encontrada": "Página no encontrada",
   "Esta página não existe ou não está mais disponível.":
     "Esta página no existe o ya no está disponible.",
@@ -113,13 +117,13 @@ export const esInterface = {
   "Nova legenda traduzida": "Nuevo subtítulo traducido",
   "Privacidade da transcrição": "Privacidad de la transcripción",
   "Transcrição de voz": "Transcripción de voz",
-  "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês e pausa quando esta aba fica oculta.":
-    "Al activar esta opción, tu voz se envía al servidor de Dicere para transcribirla, sin guardar grabaciones. El texto se sigue enviando a DeepL para traducirlo. El reconocimiento admite portugués, inglés, español y chino, y se pausa cuando esta pestaña queda oculta.",
+  "Ao ativar, sua voz será enviada ao servidor do Dicere para transcrição, sem salvar gravações. O texto continua sendo enviado à DeepL para tradução. O reconhecimento aceita Português, Inglês, Espanhol e Chinês. Enquanto o microfone estiver ligado, continua em segundo plano quando o navegador permitir.":
+    "Al activar esta opción, tu voz se envía al servidor de Dicere para transcribirla, sin guardar grabaciones. El texto se sigue enviando a DeepL para traducirlo. El reconocimiento admite portugués, inglés, español y chino. Mientras el micrófono esté activado, continúa en segundo plano cuando el navegador lo permite.",
   "Ativar transcrição nesta sala": "Activar transcripción en esta sala",
   "O idioma de voz {language} não é reconhecido. Selecione um idioma disponível em “Idioma falado”.":
     "No se reconoce el idioma de voz {language}. Selecciona un idioma disponible en «Idioma hablado».",
   "A mensagem deve ter no máximo {count} caracteres.":
     "El mensaje debe tener como máximo {count} caracteres.",
-  "Reconectando a transcrição… Tentativa {attempt}/3. O trecho interrompido não será reenviado.":
-    "Reconectando la transcripción… Intento {attempt}/3. El fragmento interrumpido no se reenviará.",
+  "Reconectando a transcrição… Tentativa {attempt}. O trecho interrompido não será reenviado.":
+    "Reconectando la transcripción… Intento {attempt}. El fragmento interrumpido no se reenviará.",
 } satisfies InterfaceMessages;

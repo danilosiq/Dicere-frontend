@@ -8,6 +8,11 @@ import {
   resetParticipantReady,
 } from "@/core/services/call-signaling-service";
 import { useCallStore } from "@/core/store/call-store";
+import { useRoomSessionStore } from "@/core/store/room-session-store";
+import {
+  useAutomaticCallRecovery,
+  isTransientCallCode,
+} from "./use-automatic-call-recovery";
 
 import { useJoinCall } from "@/core/hooks/use-join-call";
 import { useLocalMedia } from "@/core/hooks/use-local-media";
@@ -40,6 +45,7 @@ export function useCallSession() {
     isJoined,
     isJoining,
     errorMessage: joinCallErrorMessage,
+    error: joinCallError,
   } = useJoinCall();
   const mediaControls = useMediaControls();
   const resetCallState = useCallStore((state) => state.resetCallState);
@@ -51,6 +57,8 @@ export function useCallSession() {
   const [termination, setTermination] = useState<CallTermination | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const isInitializingRef = useRef(false);
+  const roomJoined = useRoomSessionStore((state) => state.isJoined);
+  const reconnectingRoom = useRoomSessionStore((state) => state.isReconnecting);
 
   const cleanupCall = useCallback(() => {
     closePeerConnection();
@@ -61,6 +69,13 @@ export function useCallSession() {
 
   const handleCallTerminated = useCallback(
     (termination: CallTermination) => {
+      if (termination.type === "socket-disconnected") {
+        closePeerConnection();
+        resetCallSignaling();
+        useCallStore.getState().clearJoinedCall();
+        setTermination(termination);
+        return;
+      }
       if (termination.type !== "participant-left") {
         cleanupCall();
         setTermination(termination);
@@ -152,6 +167,7 @@ export function useCallSession() {
   }, [cleanupCall]);
 
   const retryCall = useCallback(async () => {
+    setTermination(null);
     if (isLocalMediaError || !localStream) {
       await initializeCall();
       return;
@@ -190,6 +206,18 @@ export function useCallSession() {
     joinCallErrorMessage ??
     participantReadyErrorMessage ??
     signalingErrorMessage;
+
+  useAutomaticCallRecovery({
+    enabled: roomJoined && !reconnectingRoom && !isLeaving,
+    needed:
+      !isLocalMediaError &&
+      (termination?.type === "socket-disconnected" ||
+        isTransientCallCode(joinCallError?.code) ||
+        connectionState === "failed"),
+    busy: isRequesting || isJoining,
+    recovered: connectionState === "connected",
+    recover: retryCall,
+  });
 
   return {
     localStream,

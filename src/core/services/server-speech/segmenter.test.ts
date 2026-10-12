@@ -26,13 +26,13 @@ describe("StreamingSegmenter", () => {
     expect(finish).toHaveBeenCalledOnce();
   });
 
-  it("preserves pauses and continuous phrases beyond six seconds", () => {
+  it("closes a confirmed phrase at a natural pause and continues capture", () => {
     const { segmenter, start, finish } = setup();
     for (let i = 0; i < 30; i++) segmenter.push(voice());
     for (let i = 0; i < 3; i++) segmenter.push(silence());
     for (let i = 0; i < 30; i++) segmenter.push(voice());
-    expect(start).toHaveBeenCalledOnce();
-    expect(finish).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(finish).toHaveBeenCalledOnce();
   });
 
   it("rolls over at the per-capture limit without stopping the microphone", () => {
@@ -40,7 +40,7 @@ describe("StreamingSegmenter", () => {
     expect(() => {
       for (let i = 0; i < 100; i++) segmenter.push(voice());
     }).not.toThrow();
-    expect(start).toHaveBeenCalledTimes(2);
-    expect(finish).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledTimes(3);
+    expect(finish).toHaveBeenCalledTimes(2);
   });
 });

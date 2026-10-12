@@ -47,12 +47,12 @@ describe("continuous segmenter and transport", () => {
       for (let turn = 0; turn < 16; turn++) await Promise.resolve();
     }
     expect(onError).not.toHaveBeenCalled();
-    expect(finishes).toEqual(["1", "2", "3"]);
+    expect(finishes).toEqual(["1", "2", "3", "4", "5", "6"]);
     expect(
       uploads.map((chunks) => chunks.reduce((sum, bytes) => sum + bytes, 0)),
-    ).toEqual([384000, 384000, expect.any(Number)]);
-    expect(uploads[2].reduce((sum, bytes) => sum + bytes, 0)).toBeGreaterThan(
-      7 * 32000,
+    ).toEqual([192000, 192000, 192000, 192000, 192000, expect.any(Number)]);
+    expect(uploads[5].reduce((sum, bytes) => sum + bytes, 0)).toBeGreaterThan(
+      1 * 32000,
     );
     expect(
       request.mock.calls

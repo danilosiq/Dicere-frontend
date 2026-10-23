@@ -62,6 +62,9 @@ jobs:
       - name: Instalar Chromium de teste
         run: npx playwright install --with-deps chromium
 
+      - name: Verificar rejeição de ruído com VAD real no navegador
+        run: npm run test:local-speech-noise
+
       - name: Verificar isolamento e reinício do microfone de STT
         run: npm run test:speech-microphone
 

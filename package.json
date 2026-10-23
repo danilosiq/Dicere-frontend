@@ -14,7 +14,8 @@
     "test:speech-browser": "node test/speech-browser/run.mjs",
     "test:speech-microphone": "node test/speech-browser/microphone-lifecycle.mjs",
     "test:local-speech-lifecycle": "node test/speech-browser/local-engine-lifecycle.mjs",
-    "test:subtitle-visibility": "node test/speech-browser/subtitle-visibility.mjs"
+    "test:subtitle-visibility": "node test/speech-browser/subtitle-visibility.mjs",
+    "test:local-speech-noise": "node test/speech-browser/local-speech-noise.mjs"
   },
   "engines": {
     "node": ">=22.13.0"
@@ -34,6 +35,7 @@
     "embla-carousel-react": "^8.6.0",
     "lucide-react": "^1.22.0",
     "next": "16.3.3",
+    "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",
     "radix-ui": "^1.6.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
